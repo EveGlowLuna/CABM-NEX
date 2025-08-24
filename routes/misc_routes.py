@@ -20,9 +20,7 @@ bp = Blueprint('misc', __name__, url_prefix='')
 def serve_character_image(filename):
     return send_from_directory(str(project_root / 'data' / 'images'), filename)
 
-@bp.route('/data/saves/<path:filename>')
-def serve_story_file(filename):
-    return send_from_directory(str(project_root / 'data' / 'saves'), filename)
+
 
 # 已移除 /api/tts 端点
 

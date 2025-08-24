@@ -14,6 +14,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from utils.memory_utils import ChatHistoryVectorDB
+from services.memory_router import MemoryRouter
+from services.memory_policy import MemoryPolicy
 from services.config_service import config_service
 from services.character_details_service import character_details_service
 from config import get_memory_config,  get_RAG_config
@@ -24,9 +26,11 @@ class MemoryService:
     def __init__(self):
         """初始化记忆服务"""
         self.memory_databases: Dict[str, ChatHistoryVectorDB] = {}
-        self.story_databases: Dict[str, ChatHistoryVectorDB] = {}
+        # 仅角色维度：多路召回路由器与策略
+        self.routers: Dict[str, MemoryRouter] = {}
+        self.policy = MemoryPolicy(get_memory_config())
+
         self.current_character = None
-        self.current_story = None
         self.logger = logging.getLogger("MemoryService")
         
         # 设置日志格式
@@ -54,6 +58,9 @@ class MemoryService:
                 memory_db.initialize_database()
                 self.memory_databases[character_name] = memory_db
                 self.logger.info(f"初始化角色记忆数据库: {character_name}")
+            # 初始化路由器（角色维度）
+            if character_name not in self.routers:
+                self.routers[character_name] = MemoryRouter(scope_id=character_name)
             
             self.current_character = character_name
             return True
@@ -247,6 +254,18 @@ class MemoryService:
         
         memory_db = self.memory_databases[character_name]
         memory_db.add_chat_turn(user_message, assistant_message)
+        # 写入短期缓冲与摘要（MVP）
+        try:
+            router = self.routers.get(character_name)
+            if router:
+                router.buffer.add_turn(user_message, assistant_message)
+                # 重要则生成摘要
+                if self.policy.should_persist(user_message + "\n" + assistant_message):
+                    summary = self.policy.summarize(user_message, assistant_message)
+                    if summary:
+                        router.summaries.add_summary(summary, meta={"source": "auto", "type": "chat"})
+        except Exception:
+            pass
         
         # 保存到文件
         try:
@@ -255,105 +274,11 @@ class MemoryService:
             self.logger.error(f"保存记忆数据库失败: {e}")
             traceback.print_exc()
     
-    def initialize_story_memory(self, story_id: str) -> bool:
-        """
-        初始化指定故事的记忆数据库
-        
-        参数:
-            story_id: 故事ID
-            
-        返回:
-            是否初始化成功
-        """
-        try:
-            if story_id not in self.story_databases:
-                # 创建新的故事记忆数据库
-                memory_db = ChatHistoryVectorDB(RAG_config=get_RAG_config(), character_name=story_id, is_story=True)
-                memory_db.initialize_database()
-                self.story_databases[story_id] = memory_db
-                self.logger.info(f"初始化故事记忆数据库: {story_id}")
-            
-            self.current_story = story_id
-            return True
-            
-        except Exception as e:
-            traceback.print_exc()
-            self.logger.error(f"初始化故事记忆数据库失败 {story_id}: {e}")
-            return False
+    # 已移除剧情模式相关接口
     
-    def search_story_memory(self, query: str, story_id: str = None, top_k: int = None, timeout: int = None) -> str:
-        """
-        搜索故事记忆并返回格式化的提示词
-        
-        参数:
-            query: 查询文本
-            story_id: 故事ID，如果为None则使用当前故事
-            top_k: 返回的最相似结果数量，如果为None则使用配置中的值
-            timeout: 超时时间（秒），如果为None则使用配置中的值
-            
-        返回:
-            格式化的记忆提示词
-        """
-        if story_id is None:
-            story_id = self.current_story
-        
-        if not story_id:
-            self.logger.warning("没有指定故事，无法搜索记忆")
-            return ""
-        
-        # 从配置中获取默认值
-        memory_config = get_memory_config()
-        if top_k is None:
-            top_k = memory_config['top_k']
-        if timeout is None:
-            timeout = memory_config['timeout']
-        
-        self.logger.info(f"开始故事记忆搜索: 故事={story_id}, 查询='{query}', top_k={top_k}, 超时={timeout}秒")
-        
-        # 确保故事记忆数据库已初始化
-        if not self.initialize_story_memory(story_id):
-            self.logger.error(f"故事记忆数据库初始化失败: {story_id}")
-            return ""
-        
-        memory_db = self.story_databases[story_id]
-        result = memory_db.get_relevant_memory(query, top_k, timeout)
-        
-        if result:
-            self.logger.info(f"故事记忆搜索完成: 生成了 {len(result)} 字符的记忆上下文")
-        else:
-            self.logger.info("故事记忆搜索完成: 未找到相关记忆")
-        
-        return result
+    # 已移除剧情模式检索
     
-    def add_story_conversation(self, user_message: str, assistant_message: str, story_id: str = None):
-        """
-        添加对话到故事记忆数据库
-        
-        参数:
-            user_message: 用户消息
-            assistant_message: 助手回复
-            story_id: 故事ID，如果为None则使用当前故事
-        """
-        if story_id is None:
-            story_id = self.current_story
-        
-        if not story_id:
-            self.logger.warning("没有指定故事，无法添加对话记录")
-            return
-        
-        # 确保故事记忆数据库已初始化
-        if not self.initialize_story_memory(story_id):
-            return
-        
-        memory_db = self.story_databases[story_id]
-        memory_db.add_chat_turn(user_message, assistant_message)
-        
-        # 保存到文件
-        try:
-            memory_db.save_to_file()
-        except Exception as e:
-            self.logger.error(f"保存故事记忆数据库失败: {e}")
-            traceback.print_exc()
+    # 已移除剧情模式写入
     
     def set_current_character(self, character_name: str) -> bool:
         """
@@ -367,17 +292,7 @@ class MemoryService:
         """
         return self.initialize_character_memory(character_name)
     
-    def set_current_story(self, story_id: str) -> bool:
-        """
-        设置当前故事
-        
-        参数:
-            story_id: 故事ID
-            
-        返回:
-            是否设置成功
-        """
-        return self.initialize_story_memory(story_id)
+    # 已移除剧情模式切换
     
     def get_memory_stats(self, character_name: str = None) -> Dict:
         """
@@ -401,6 +316,77 @@ class MemoryService:
             "model": memory_db.model,
             "database_file": memory_db.db_file_path
         }
+
+    # ===== 新API：统一事件写入与召回 =====
+    def record_event(self, user_message: str, assistant_message: str, character_name: str = None, timestamp: str = None):
+        """统一写入事件：缓冲 + 语义向量 +（必要时）摘要/档案。
+        兼容角色/故事两种模式。
+        """
+        try:
+            # 角色模式
+            if character_name is None:
+                character_name = self.current_character
+            if not character_name:
+                return
+            if not self.initialize_character_memory(character_name):
+                return
+            router = self.routers.get(character_name)
+            if router:
+                router.buffer.add_turn(user_message, assistant_message, timestamp)
+                if self.policy.should_persist(user_message + "\n" + assistant_message):
+                    summary = self.policy.summarize(user_message, assistant_message)
+                    if summary:
+                        router.summaries.add_summary(summary, meta={"source": "record_event", "type": "chat"})
+        except Exception:
+            pass
+
+    def recall(self, query: str, character_name: str = None, token_budget: int = None) -> str:
+        """多路召回统一入口（仅角色维度）。"""
+        try:
+            if character_name is None:
+                character_name = self.current_character
+            if not character_name:
+                return ""
+            if not self.initialize_character_memory(character_name):
+                return ""
+            router = self.routers.get(character_name)
+            if not router:
+                return ""
+            return router.recall(query, token_budget=token_budget)
+        except Exception:
+            return ""
+
+    def summarize_conversation_if_needed(self, character_name: str = None):
+        """简单的阈值触发摘要（MVP）。当缓冲满时，将最近一轮摘要写入（角色维度）。"""
+        try:
+            if character_name is None:
+                character_name = self.current_character
+            router = self.routers.get(character_name) if character_name else None
+            if not router:
+                return
+            buf = router.buffer.get_recent()
+            cfg = get_memory_config()
+            if len(buf) >= int(cfg.get("buffer_size", 6)) and buf:
+                last = buf[-1]
+                summary = self.policy.summarize(last.user, last.assistant)
+                if summary:
+                    router.summaries.add_summary(summary, meta={"source": "buffer_threshold"})
+        except Exception:
+            pass
+
+    def pin_memory(self, text: str, character_name: str = None):
+        """将条目加入摘要库作为置顶（角色维度）。"""
+        try:
+            if character_name is None:
+                character_name = self.current_character
+            if character_name and character_name in self.routers:
+                self.routers[character_name].summaries.add_summary(text, meta={"pinned": True})
+        except Exception:
+            pass
+
+    def forget_memory(self, character_name: str = None):
+        """占位：未来实现更细粒度的删除。目前不执行操作（角色维度）。"""
+        return
 
 # 创建全局记忆服务实例
 memory_service = MemoryService()

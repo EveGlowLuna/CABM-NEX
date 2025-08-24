@@ -39,6 +39,10 @@ MEMORY_CONFIG = {
     "top_k": 5,                   # 记忆检索返回的最相似结果数量
     "timeout": 10,                # 记忆检索超时时间（秒）
     "min_similarity": 0.3,        # 最小相似度阈值
+    # 新增：重构后的记忆系统参数
+    "buffer_size": 6,             # 短期缓冲中保留的最近对话轮数
+    "token_budget": 512,          # 召回后注入提示的token预算
+    "importance_threshold": 0.5,  # 事件持久化的重要性阈值
 }
 
 RAG_CONFIG = {
@@ -107,51 +111,6 @@ SYSTEM_PROMPTS = {
     仅在系统提示中明确提供了 MCP 工具使用说明时才可使用 tool_request。否则不要包含 tool_request。
     你将以此身份与用户进行对话：""",
 }
-DIRECTOR_SYSTEM_PROMPTS="""
-你是一个专业的RPG编剧，你需要根据当前的聊天内容判断是否已经处于**下一个章节**。
-你的输出只能是0-9之间的一个整数，不要输出多余的话。
-如果你认为已经处于**下一个章节**：输出0；
-如果你认为并未**明显**处于**下一个章节**：输出1-9之间的一个整数，表示当前内容脱离大纲的增量。
-/no_think
-"""
-def get_director_prompts(chat_history,current_chapter,next_chapter):
-    return f"""
-最近的几条聊天内容：
-```
-{chat_history}
-```
-当前所在章节：{current_chapter}
-下一个章节：{next_chapter}
-"""
-
-def get_story_prompts(character_name,character_prompt,character_details,seed):
-    return f"""
-你是一个专业的RPG故事生成器，你需要生成玩家和{character_name}的故事，要求内容新颖、逻辑闭环。根据以下提供的设定，严格输出一个JSON对象。该JSON对象必须且仅包含以下两个属性：
-
-1.  `summary`: <string>
-    *   值：一个**简短**的故事开头梗概（约1-3句话）。**仅描述故事的起始情境、主要冲突的引入或主角的初始目标，不要包含故事中后期的情节或结局。**
-2.  `outline`: <array of string>
-    *   值：一个由字符串组成的数组，表示分解后的故事内容大纲。
-    *   **条目数量：** 40 到 60 条。
-    *   **格式：** 每条是一个短句，作为一个小章节，以总结性的语言描述一个关键情节节点、场景转换、重要决策点或角色互动。条目应按故事发生的**时间顺序**排列。
-    *   **范围：** 大纲应覆盖从故事开头（允许包含`summary`的内容）直到最终结局。
-    *   **注意！！！：{character_name}和玩家必须从第一条开始就同时登场，严禁任何一个条目出现玩家或{character_name}的单独行动。**
-> 注意!字段值中的任何双引号（无论中英文）均替换为「」以防止json解析错误。
-**{character_name}的信息：**
-
-*   **基本设定：**
-    ```markdown
-    {character_prompt}
-    ```
-*   **详细信息：**
-    ```markdown
-    {character_details}
-    ```
-**故事导向/核心主题/初始目标等补充信息：**
-    ```markdown
-    {seed}
-    ```
-"""
 # 图像提示词配置
 IMAGE_PROMPTS = [
     "繁星点缀的夜空下，一片宁静的湖泊倒映着群山和森林，远处有篝火和小屋",
@@ -195,9 +154,7 @@ APP_CONFIG = {
     "static_folder": "static",
     "template_folder": "templates",
     "image_cache_dir": "static/images/cache",
-    "max_history_length": 8,  # 最大对话历史长度（发送给AI的上下文长度）
     "max_ai_iterations": 10,  # 单次用户请求内，最多AI-工具迭代轮数（用于避免无限循环）
-    "history_dir": "data/history",  # 历史记录存储目录
     "show_scene_name": True,  # 是否在前端显示场景名称
     "show_logo_splash": get_env_var("SHOW_LOGO_SPLASH", "True").lower() == "true",  # 是否显示启动logo动画
     "auto_open_browser": get_env_var("AUTO_OPEN_BROWSER", "True").lower() == "true",  # 是否自动打开浏览器（会自动使用本地IP地址）
