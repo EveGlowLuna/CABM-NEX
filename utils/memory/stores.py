@@ -126,9 +126,9 @@ class ProfileStore:
 
 class VectorStoreAdapter:
     """Adapter wrapping the existing ChatHistoryVectorDB as a vector store."""
-    def __init__(self, scope_id: str):
+    def __init__(self, scope_id: str, is_story: bool = False):
         self.scope_id = scope_id
-        self.db = ChatHistoryVectorDB(RAG_config=get_RAG_config(), character_name=scope_id)
+        self.db = ChatHistoryVectorDB(RAG_config=get_RAG_config(), character_name=scope_id, is_story=is_story)
         # Ensure underlying DB exists
         self.db.initialize_database()
 

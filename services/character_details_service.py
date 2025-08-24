@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # 添加项目根目录到系统路径
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from utils.memory_utils import CharacterDetailsVectorDB
+from utils.memory_utils import ChatHistoryVectorDB
 from services.config_service import config_service
 from config import get_RAG_config
 

@@ -82,7 +82,8 @@ def home():
 @bp.route('/chat')
 def chat_page():
     try:
-
+        if getattr(chat_service, "story_mode", False):
+            chat_service.exit_story_mode()
         current_character = chat_service.get_character_config()
         if current_character and "id" in current_character:
             chat_service.set_character(current_character["id"])
@@ -515,7 +516,13 @@ def chat_stream():
                         if full_response:
                             chat_service.add_message("assistant", full_response)
                             try:
-
+                                if chat_service.story_mode and chat_service.current_story_id:
+                                    chat_service.memory_service.add_story_conversation(
+                                        user_message=message,
+                                        assistant_message=full_response,
+                                        story_id=chat_service.current_story_id
+                                    )
+                                else:
                                     character_id = chat_service.config_service.current_character_id or "default"
                                     chat_service.memory_service.add_conversation(
                                         user_message=message,

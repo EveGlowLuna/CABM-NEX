@@ -15,8 +15,8 @@ def timeout_handler(signum, frame):
     """超时处理函数"""
     raise TimeoutError("操作超时")
 
-class CharacterDetailsVectorDB:
-    def __init__(self, RAG_config: dict, model: str = None, character_name: str = "default"):
+class ChatHistoryVectorDB:
+    def __init__(self, RAG_config: dict, model: str = None, character_name: str = "default", is_story: bool = False):
         """
         初始化向量数据库
         
@@ -24,10 +24,12 @@ class CharacterDetailsVectorDB:
             RAG_config: RAG配置字典
             model: 使用的嵌入模型，如果为None则从环境变量读取
             character_name: 角色名称或故事ID，用于确定数据库文件名
+            is_story: 是否为故事模式
         """
         self.config = RAG_config
         self.character_name = character_name
         self.model = model
+        self.is_story = is_story
         
         # 设置日志
         self.logger = logging.getLogger(f"MemoryDB_{character_name}")
@@ -38,8 +40,13 @@ class CharacterDetailsVectorDB:
             self.logger.addHandler(handler)
             self.logger.setLevel(logging.INFO)
         
-        # 角色模式：保存到 data/memory/{character_name}/
-        self.data_memory = os.path.join('data', 'memory', character_name)
+        # 根据模式设置数据目录
+        if is_story:
+            # 故事模式：保存到 data/saves/{story_id}/
+            self.data_memory = os.path.join('data', 'saves', character_name)
+        else:
+            # 角色模式：保存到 data/memory/{character_name}/
+            self.data_memory = os.path.join('data', 'memory', character_name)
         
         os.makedirs(self.data_memory, exist_ok=True)    
         
