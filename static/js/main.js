@@ -1,14 +1,10 @@
 // 主入口文件 - 事件绑定和初始化
 
-// TTS开关变量 - 控制是否启用TTS功能
-window.ttsEnabled = true; // 默认开启TTS，设为false可关闭TTS功能
-
 import { 
     startButton, 
     backButton, 
     exitButton, 
     sendButton, 
-    playaudioButton, 
     backgroundButton, 
     historyButton, 
     closeHistoryButton, 
@@ -16,7 +12,6 @@ import {
     closeCharacterButton, 
     continueButton, 
    // skipButton, 
-    micButton, 
     errorCloseButton, 
     confirmYesButton, 
     confirmNoButton, 
@@ -45,12 +40,7 @@ import {
     getCurrentCharacter 
 } from './character-service.js';
 
-import { 
-    playAudio, 
-    playTextAudio,
-    toggleRecording,
-    stopCurrentAudio
-} from './audio-service.js';
+// 已移除音频与TTS相关功能
 
 import { 
     sendMessage, 
@@ -80,14 +70,12 @@ document.addEventListener('DOMContentLoaded', () => {
             backButton,
             exitButton,
             sendButton,
-            playaudioButton,
             backgroundButton,
             historyButton,
             closeHistoryButton,
             characterButton,
             closeCharacterButton,
             continueButton,
-            micButton,
             errorCloseButton,
             confirmYesButton,
             confirmNoButton,
@@ -117,7 +105,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 绑定对话事件
         // sendButton 的点击事件已经在 input-enhancements.js 中处理
-        playaudioButton.addEventListener('click', () => playAudio(getCurrentCharacter(), false)); // 用户主动播放
         backgroundButton.addEventListener('click', changeBackground);
         historyButton.addEventListener('click', toggleHistory);
         closeHistoryButton.addEventListener('click', toggleHistory);
@@ -125,7 +112,6 @@ document.addEventListener('DOMContentLoaded', () => {
         closeCharacterButton.addEventListener('click', toggleCharacterModal);
         continueButton.addEventListener('click', continueOutput);
         //skipButton.addEventListener('click', skipTyping);
-        micButton.addEventListener('click', () => toggleRecording(messageInput, micButton, showError));
         errorCloseButton.addEventListener('click', hideError);
 
         // 绑定确认对话框事件
@@ -168,22 +154,7 @@ registrationShortcuts({
     b: changeBackground
 });
 
-// TTS开关控制函数
-window.toggleTTS = function() {
-    window.ttsEnabled = !window.ttsEnabled;
-    console.log(`TTS已${window.ttsEnabled ? '开启' : '关闭'}`);
-    return window.ttsEnabled;
-};
-
-window.setTTS = function(enabled) {
-    window.ttsEnabled = !!enabled;
-    console.log(`TTS已${window.ttsEnabled ? '开启' : '关闭'}`);
-    return window.ttsEnabled;
-};
-
 // 暴露必要的函数给全局使用
 window.getCurrentCharacter = getCurrentCharacter;
 window.showOptionButtons = showOptionButtons;
-window.playAudio = (autoPlay = false) => playAudio(getCurrentCharacter(), autoPlay);
-window.stopCurrentAudio = stopCurrentAudio;
 window.showError = showError;

@@ -19,7 +19,6 @@ import {
     setIsPaused
 } from './ui-service.js';
 import { getCurrentCharacter, handleMoodChange } from './character-service.js';
-import { prefetchAudio, prefetchAndPlayAudio } from './audio-service.js';
 
 // 流式处理器实例
 let streamProcessor = null;
@@ -41,13 +40,11 @@ export async function sendMessage() {
     // 创建新的流式处理器
     streamProcessor = new StreamProcessor();
 
-    // 跟踪已添加到历史记录的内容长度
+    // 跟踪已添加到历史记录的内容长度（与 StreamProcessor 的段落边界对齐）
     let addedToHistoryLength = 0;
 
-    // 跟踪当前正在处理的句子和已播放的内容
-    let currentSentence = '';
-    let lastPlayedLength = 0;
-    let isFirstSentence = true;
+    // 判断句子是否包含实质内容（非纯标点/空白）
+    const hasSubstance = (s) => /[^\s\u3000\u3002\uff01\uff1f\.!?]/.test(s);
 
     // 设置回调函数
     streamProcessor.setCallbacks(
@@ -55,102 +52,49 @@ export async function sendMessage() {
         (fullContent) => {
             const newContent = fullContent.substring(addedToHistoryLength);
             updateCurrentMessage('assistant', newContent, true);
-            
-            // 检查是否有新的完整句子需要处理
-            const sentences = newContent.split(/([。？！…~])/);
-            let completeSentences = '';
-            
-            // 找到所有完整的句子（包含标点符号）
-            for (let i = 0; i < sentences.length - 1; i += 2) {
-                if (i + 1 < sentences.length) {
-                    completeSentences += sentences[i] + sentences[i + 1];
-                }
-            }
-            
-            // 如果有新的完整句子且还没有播放过
-            if (completeSentences.length > lastPlayedLength) {
-                const newSentenceContent = completeSentences.substring(lastPlayedLength);
-                if (newSentenceContent.trim()) {
-                    const currentCharacter = getCurrentCharacter();
-                    const characterName = currentCharacter ? currentCharacter.name : 'AI助手';
-                    
-                    // 立即开始预加载并播放音频
-                    prefetchAndPlayAudio(newSentenceContent, characterName, currentCharacter);
-                    
-                    lastPlayedLength = completeSentences.length;
-                    isFirstSentence = false;
-                }
-            }
         },
-        // 暂停回调
+        // 暂停回调（自动继续，无需用户点击）
         (fullContent) => {
             setIsPaused(true);
             const currentCharacter = getCurrentCharacter();
-            const newContent = fullContent.substring(addedToHistoryLength);
-            if (newContent) {
-                const characterName = currentCharacter ? currentCharacter.name : 'AI助手';
-                
-                // 检查是否有未播放的内容
-                const unplayedContent = newContent.substring(lastPlayedLength);
-                if (unplayedContent.trim()) {
-                    prefetchAudio(unplayedContent, characterName, () => {
-                        if (window.playAudio) window.playAudio(true);
-                    });
-                }
-                
-                addToHistory('assistant', newContent, characterName);
-                updateCurrentMessage('assistant', newContent);
+            const characterName = currentCharacter ? currentCharacter.name : 'AI助手';
+            const newContent = (fullContent.substring(addedToHistoryLength) || '');
+            // 清理：避免新段开头出现游离标点（中英文句末符号与省略号）
+            const cleaned = newContent.replace(/^[\s\u3000]*[\u3002\uff01\uff1f\.\!\?\u2026]+\s*/, '');
+            const toAppend = hasSubstance(cleaned) ? cleaned : newContent;
+            if (toAppend && hasSubstance(toAppend)) {
+                addToHistory('assistant', toAppend, characterName);
                 addedToHistoryLength = fullContent.length;
-                showContinuePrompt();
             } else {
-                showContinuePrompt();
+                addedToHistoryLength = fullContent.length;
             }
-            
-            // 重置句子跟踪变量
-            lastPlayedLength = 0;
-            isFirstSentence = true;
+            hideContinuePrompt();
+            if (streamProcessor) {
+                streamProcessor.continue();
+            }
         },
         // 完成回调
         (fullContent) => {
             const currentCharacter = getCurrentCharacter();
-            const remainingContent = fullContent.substring(addedToHistoryLength);
-            if (remainingContent) {
-                const characterName = currentCharacter ? currentCharacter.name : 'AI助手';
-                
-                // 检查是否有未播放的内容
-                const unplayedContent = remainingContent.substring(lastPlayedLength);
-                if (unplayedContent.trim()) {
-                    prefetchAudio(unplayedContent, characterName, () => {
-                        if (window.playAudio) window.playAudio(true);
-                    });
-                }
-                
-                addToHistory('assistant', remainingContent, characterName);
-                updateCurrentMessage('assistant', remainingContent);
-                hideContinuePrompt();
-                enableUserInput();
-                setIsPaused(false);
-                if (window.pendingOptions && window.pendingOptions.length > 0) {
-                    if (window.showOptionButtons) {
-                        window.showOptionButtons(window.pendingOptions);
-                    }
-                    window.pendingOptions = null;
-                }
-            } else {
-                hideContinuePrompt();
-                enableUserInput();
-                setIsPaused(false);
-                if (window.pendingOptions && window.pendingOptions.length > 0) {
-                    if (window.showOptionButtons) {
-                        window.showOptionButtons(window.pendingOptions);
-                    }
-                    window.pendingOptions = null;
-                }
+            const characterName = currentCharacter ? currentCharacter.name : 'AI助手';
+            const remainingContent = (fullContent.substring(addedToHistoryLength) || '');
+            const cleanedRemain = remainingContent.replace(/^[\s\u3000]*[\u3002\uff01\uff1f\.\!\?\u2026]+\s*/, '');
+            const toAppendFinal = hasSubstance(cleanedRemain) ? cleanedRemain : remainingContent;
+            if (toAppendFinal && hasSubstance(toAppendFinal)) {
+                addToHistory('assistant', toAppendFinal, characterName);
             }
-            
-            // 重置句子跟踪变量
-            lastPlayedLength = 0;
-            isFirstSentence = true;
+            hideContinuePrompt();
+            enableUserInput();
+            setIsPaused(false);
+            if (window.pendingOptions && window.pendingOptions.length > 0) {
+                if (window.showOptionsAsUserBubble) {
+                    window.showOptionsAsUserBubble(window.pendingOptions);
+                } else if (window.showOptionButtons) {
+                    // 兼容旧逻辑
+                    window.showOptionButtons(window.pendingOptions);
+                }
+                window.pendingOptions = null;
+            }
         }
     );
 
@@ -185,7 +129,10 @@ export async function sendMessage() {
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ message })
+            body: JSON.stringify({ 
+                message,
+                mcp_enabled: (typeof window.getMcpEnabled === 'function') ? window.getMcpEnabled() : false
+            })
         });
 
         if (!response.ok) {
@@ -197,57 +144,128 @@ export async function sendMessage() {
 
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
+        let sseBuffer = '';
 
-        // 准备接收流式响应
-        updateCurrentMessage('assistant', '\n');
+        // 准备接收流式响应（仅用于创建流式气泡，不覆盖系统消息）
+        updateCurrentMessage('assistant', '\n', true);
 
         // 读取流式响应
         while (true) {
             const { done, value } = await reader.read();
 
             if (done) {
-                break;
-            }
-
-            const chunk = decoder.decode(value, { stream: true });
-
-            try {
-                const lines = chunk.split('\n').filter(line => line.trim());
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const jsonStr = line.slice(6);
-
+                // 处理缓冲区中残留的行
+                if (sseBuffer.trim()) {
+                    const maybeLine = sseBuffer.trim();
+                    if (maybeLine.startsWith('data: ')) {
+                        const jsonStr = maybeLine.slice(6);
                         if (jsonStr === '[DONE]') {
                             streamProcessor.markEnd();
                             break;
                         }
-
                         try {
                             const data = JSON.parse(jsonStr);
-
-                            if (data.error) {
-                                throw new Error(data.error);
+                            if (data.system) {
+                                // 在追加系统提示前，先将当前已生成的角色文本固定为历史气泡
+                                if (streamProcessor) {
+                                    const fullContent = streamProcessor.getFullContentIncludingBuffer?.()
+                                        || streamProcessor.getFullContent();
+                                    const newContent = (fullContent.substring(addedToHistoryLength) || '');
+                                    // 不再清理前导标点，避免标点缺失
+                                    const toAppend = newContent;
+                                    if (toAppend && hasSubstance(toAppend)) {
+                                        const currentCharacter = getCurrentCharacter();
+                                        const characterName = currentCharacter ? currentCharacter.name : 'AI助手';
+                                        addToHistory('assistant', toAppend, characterName);
+                                        addedToHistoryLength = fullContent.length;
+                                        // 记录一个待丢弃前缀，用于下一轮到来的助手内容做去重
+                                        window.__pendingDropPrefix = toAppend;
+                                    }
+                                }
+                                addToHistory('system', data.system, '系统');
                             }
-
-                            // 处理mood字段
-                            if (data.mood !== undefined) {
-                                console.log('收到mood数据:', data.mood);
-                                handleMoodChange(data.mood);
-                            }
-
-                            // 处理content字段
-                            if (data.content) {
-                                streamProcessor.addData(data.content);
-                            }
-
-                            // 处理选项数据
-                            if (data.options) {
-                                window.pendingOptions = data.options;
-                            }
+                            if (data.mood !== undefined) handleMoodChange(data.mood);
+                            if (data.content) streamProcessor.addData(data.content);
+                            if (data.options) window.pendingOptions = data.options;
                         } catch (e) {
-                            console.error('解析JSON失败:', e, jsonStr);
+                            console.error('解析JSON失败(EOF):', e, jsonStr);
                         }
+                    }
+                }
+                break;
+            }
+
+            const chunk = decoder.decode(value, { stream: true });
+            sseBuffer += chunk;
+
+            try {
+                // 按行解析，但保留不完整的尾部到下次
+                let idx;
+                while ((idx = sseBuffer.indexOf('\n')) !== -1) {
+                    const rawLine = sseBuffer.slice(0, idx);
+                    sseBuffer = sseBuffer.slice(idx + 1);
+                    const line = rawLine.trim();
+                    if (!line) continue;
+                    if (!line.startsWith('data: ')) continue;
+
+                    const jsonStr = line.slice(6);
+                    if (jsonStr === '[DONE]') {
+                        streamProcessor.markEnd();
+                        sseBuffer = '';
+                        break;
+                    }
+                    try {
+                        const data = JSON.parse(jsonStr);
+                        if (data.error) throw new Error(data.error);
+                        if (data.mood !== undefined) {
+                            handleMoodChange(data.mood);
+                        }
+                        if (data.content) {
+                            // 若上一条为系统提示，且我们刚刚把助手文本固定进历史，则去重处理
+                            let incoming = data.content;
+                            const prev = window.__pendingDropPrefix || '';
+                            if (prev) {
+                                // 计算 prev 的后缀与 incoming 前缀的最大重叠
+                                const maxK = Math.min(prev.length, 200);
+                                let overlap = 0;
+                                for (let k = maxK; k > 0; k--) {
+                                    if (prev.slice(prev.length - k) === incoming.slice(0, k)) {
+                                        overlap = k; break;
+                                    }
+                                }
+                                if (overlap > 0) {
+                                    incoming = incoming.slice(overlap);
+                                }
+                                // 只针对第一批内容进行一次去重
+                                window.__pendingDropPrefix = '';
+                            }
+                            if (incoming) {
+                                streamProcessor.addData(incoming);
+                            }
+                        }
+                        if (data.system) {
+                            // 在追加系统提示前，先将当前已生成的角色文本固定为历史气泡
+                            if (streamProcessor) {
+                                const fullContent = streamProcessor.getFullContentIncludingBuffer?.() || streamProcessor.getFullContent();
+                                const newContent = (fullContent.substring(addedToHistoryLength) || '');
+                                // 不再清理前导标点，避免标点缺失
+                                const toAppend = newContent;
+                                if (toAppend && hasSubstance(toAppend)) {
+                                    const currentCharacter = getCurrentCharacter();
+                                    const characterName = currentCharacter ? currentCharacter.name : 'AI助手';
+                                    addToHistory('assistant', toAppend, characterName);
+                                    addedToHistoryLength = fullContent.length;
+                                    // 记录一个待丢弃前缀，用于下一轮到来的助手内容做去重
+                                    window.__pendingDropPrefix = toAppend;
+                                }
+                            }
+                            addToHistory('system', data.system, '系统');
+                        }
+                        if (data.options) {
+                            window.pendingOptions = data.options;
+                        }
+                    } catch (e) {
+                        console.error('解析JSON失败:', e, jsonStr);
                     }
                 }
             } catch (e) {
@@ -265,6 +283,7 @@ export async function sendMessage() {
             streamProcessor.reset();
         }
     }
+
 }
 
 // 更换背景
@@ -298,7 +317,8 @@ export async function changeBackground() {
                 `背景已更新，提示词: "${data.prompt}"` :
                 '背景已更新';
 
-            updateCurrentMessage('system', promptMessage);
+            // 追加系统提示为独立气泡，避免覆盖初始系统消息
+            addToHistory('system', promptMessage, '系统');
         }
 
     } catch (error) {
@@ -308,14 +328,8 @@ export async function changeBackground() {
         hideLoading();
     }
 }
-
 // 继续输出
 export function continueOutput() {
-    // 自动中断正在播放的语音
-    if (window.stopCurrentAudio) {
-        window.stopCurrentAudio();
-    }
-    
     console.log('continueOutput called, streamProcessor:', streamProcessor);
 
     if (streamProcessor) {

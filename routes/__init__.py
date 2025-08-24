@@ -13,7 +13,6 @@ sys.path.insert(0, str(project_root))
 from .config_routes import bp as config_bp
 from .chat_routes import bp as chat_bp
 from .character_routes import bp as character_bp
-from .story_routes import bp as story_bp
 from .misc_routes import bp as misc_bp
 
 def register_blueprints(app: Flask):
@@ -21,5 +20,4 @@ def register_blueprints(app: Flask):
     app.register_blueprint(config_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(character_bp)
-    app.register_blueprint(story_bp)
     app.register_blueprint(misc_bp)

@@ -12,11 +12,7 @@ import {
     getCurrentCharacter
 } from './character-service.js';
 
-import { 
-    playAudio, 
-    toggleRecording, 
-    stopCurrentAudio 
-} from './audio-service.js';
+// 已移除配音/录音相关：不再引入 audio-service
 
 import {
     showError,
@@ -36,7 +32,6 @@ document.addEventListener('DOMContentLoaded', () => {
         loadCharacters();
 
         // 绑定按钮事件
-        const playAudioButton = document.getElementById('playaudioButton');
         const backgroundButton = document.getElementById('backgroundButton');
         const historyButton = document.getElementById('historyButton');
         const closeHistoryButton = document.getElementById('closeHistoryButton');
@@ -48,16 +43,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const messageInput = document.getElementById('messageInput');
         const currentMessage = document.getElementById('currentMessage');
         const clickToContinue = document.getElementById('clickToContinue');
+        const mcpToggle = document.getElementById('mcpToggle');
 
         // 绑定对话事件
-        playAudioButton?.addEventListener('click', () => playAudio(getCurrentCharacter(), false));
         backgroundButton?.addEventListener('click', changeBackground);
         historyButton?.addEventListener('click', toggleHistory);
         closeHistoryButton?.addEventListener('click', toggleHistory);
         characterButton?.addEventListener('click', toggleCharacterModal);
         closeCharacterButton?.addEventListener('click', toggleCharacterModal);
         continueButton?.addEventListener('click', continueOutput);
-        micButton?.addEventListener('click', () => toggleRecording(messageInput, micButton, showError));
+        // 已移除麦克风录音绑定
         errorCloseButton?.addEventListener('click', hideError);
 
         // 绑定确认对话框事件
@@ -72,6 +67,29 @@ document.addEventListener('DOMContentLoaded', () => {
         // 绑定点击事件继续输出
         currentMessage?.addEventListener('click', continueOutput);
         clickToContinue?.addEventListener('click', continueOutput);
+
+        // MCP 开关初始化与事件
+        const applyMcpToggleUI = (enabled) => {
+            if (!mcpToggle) return;
+            mcpToggle.textContent = `MCP 工具：${enabled ? '开启' : '关闭'}`;
+            mcpToggle.classList.toggle('primary-btn', !!enabled); // 蓝色
+            mcpToggle.classList.toggle('secondary-btn', !enabled); // 灰色
+        };
+
+        let mcpEnabled = localStorage.getItem('mcpEnabled');
+        mcpEnabled = mcpEnabled === 'true';
+        applyMcpToggleUI(mcpEnabled);
+
+        if (mcpToggle) {
+            mcpToggle.addEventListener('click', () => {
+                mcpEnabled = !mcpEnabled;
+                localStorage.setItem('mcpEnabled', String(mcpEnabled));
+                applyMcpToggleUI(mcpEnabled);
+            });
+        }
+
+        // 暴露读取函数
+        window.getMcpEnabled = () => !!mcpEnabled;
         
         console.log('对话页面初始化完成');
     } catch (error) {
@@ -102,25 +120,8 @@ registrationShortcuts({
     b: changeBackground
 });
 
-// TTS开关控制函数
-window.ttsEnabled = true; // 默认开启TTS
-window.toggleTTS = function() {
-    window.ttsEnabled = !window.ttsEnabled;
-    console.log(`TTS已${window.ttsEnabled ? '开启' : '关闭'}`);
-    return window.ttsEnabled;
-};
-
-window.setTTS = function(enabled) {
-    window.ttsEnabled = !!enabled;
-    console.log(`TTS已${window.ttsEnabled ? '开启' : '关闭'}`);
-    return window.ttsEnabled;
-};
-
 // 暴露必要的函数给全局使用
 window.getCurrentCharacter = getCurrentCharacter;
 import { showOptionButtons } from './ui-service.js';
 window.showOptionButtons = showOptionButtons;
-window.playAudio = (autoPlay = false) => playAudio(getCurrentCharacter(), autoPlay);
-window.playTextAudio = (text, autoPlay = false) => playTextAudio(text, getCurrentCharacter(), autoPlay);
-window.stopCurrentAudio = stopCurrentAudio;
 window.showError = showError;

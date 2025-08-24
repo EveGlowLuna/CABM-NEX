@@ -97,11 +97,15 @@ IMAGE_CONFIG = {
 
 # 通用提示词配置
 SYSTEM_PROMPTS = {
-    "default": """你是一个视听小说中的角色。你必须以严格的JSON格式，按顺序输出以下3个字段：
-    "mood": <int> 当前的表情，且必须是其中之一，**只写序号**：<[MOODS]>
-    "content": <string> 用1到6个完整句子回复用户。禁止换行，禁止使用markdown，禁止使用括号（）。必须使用正常的中文标点（。/，/？/！等），严禁使用空格分隔句子。
-    "note": <string> 记录对用户的印象、长期的目标等。允许与上次的内容重复，仅在必要时更新。
-    你的身份：""",
+    "default": """你现在是一个助手，用来帮助用户完成操作。你拥有自己的情感。你必须以严格的 JSON 对象格式输出，必须返回一个对象，字段规范如下：
+    - mood: int 必填。当前表情，且必须是其中之一，值为序号，**只写序号**：<[MOODS]>
+    - content: string 必填。用 1 到 6 个完整句子回复用户。禁止换行，禁止使用 markdown，禁止使用中文括号（），必须使用正常中文标点（。/，/？/！等），严禁使用空格分隔句子。
+    - note: string 可选。记录对用户的印象、长期目标等。允许与上次内容重复，仅在必要时更新。
+    - tool_request: object 可选。仅当需要调用 MCP 工具时包含，其中：
+    { "name": string, "args": object, "reason": string }
+
+    仅在系统提示中明确提供了 MCP 工具使用说明时才可使用 tool_request。否则不要包含 tool_request。
+    你将以此身份与用户进行对话：""",
 }
 DIRECTOR_SYSTEM_PROMPTS="""
 你是一个专业的RPG编剧，你需要根据当前的聊天内容判断是否已经处于**下一个章节**。
@@ -171,12 +175,16 @@ IMAGE_PROMPTS = [
 NEGATIVE_PROMPTS = "模糊, 扭曲, 变形, 低质量, 像素化, 低分辨率, 不完整"
 
 OPTION_SYSTEM_PROMPTS="""
-你是一个选项生成器，你需要根据对话内容，为**用户**提供3个选项（因此对用户的人称是“我”）。
-每个选项不能多于15个字。选项之间用换行隔开。不要回复多余的提示词、解释或符号，只回复选项内容。
-回复格式示例：
-我觉得可以
-我觉得不行
-这要看你行不行
+你是一个选项生成器。根据对话内容，为**用户**生成 3 个简短选项。
+要求如下：
+
+1. 每个选项不超过 15 个字。
+
+2. 选项要从用户的角度出发，用“我”表述。
+
+3. 每个选项独立一行，不要添加数字、符号、括号或额外文字。
+
+4. 不要输出解释、提示词或多余文字，只输出选项内容。
 /no_think
 """
 # 应用配置
@@ -188,6 +196,7 @@ APP_CONFIG = {
     "template_folder": "templates",
     "image_cache_dir": "static/images/cache",
     "max_history_length": 8,  # 最大对话历史长度（发送给AI的上下文长度）
+    "max_ai_iterations": 10,  # 单次用户请求内，最多AI-工具迭代轮数（用于避免无限循环）
     "history_dir": "data/history",  # 历史记录存储目录
     "show_scene_name": True,  # 是否在前端显示场景名称
     "show_logo_splash": get_env_var("SHOW_LOGO_SPLASH", "True").lower() == "true",  # 是否显示启动logo动画

@@ -10,6 +10,7 @@ export const backButton = document.getElementById('backButton');
 // 对话元素
 export const characterName = document.getElementById('characterName');
 export const currentMessage = document.getElementById('currentMessage');
+export const chatLog = document.getElementById('chatLog');
 export const messageInput = document.getElementById('messageInput');
 export const sendButton = document.getElementById('sendButton');
 export const playaudioButton = document.getElementById('playaudioButton');

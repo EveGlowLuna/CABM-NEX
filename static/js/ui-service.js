@@ -4,6 +4,7 @@ import {
     chatPage, 
     characterName, 
     currentMessage, 
+    chatLog,
     messageInput, 
     sendButton, 
     micButton,
@@ -31,6 +32,41 @@ let currentScreenClickHandler = null;
 // 获取状态
 export function getIsProcessing() {
     return isProcessing;
+}
+
+// 按需求：在AI完成后，创建一个新的“我”的气泡，内含三个选项按钮
+export function showOptionsAsUserBubble(options) {
+    if (!chatLog || !Array.isArray(options) || options.length === 0) return;
+
+    // 先清掉任何旧的选项气泡
+    const old = chatLog.querySelector('.chat-bubble.user.option-holder');
+    if (old) old.remove();
+
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble user option-holder';
+
+    const name = document.createElement('div');
+    name.className = 'name';
+    name.textContent = '你';
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'content';
+
+    const inline = document.createElement('div');
+    inline.className = 'inline-options';
+    options.forEach((option) => {
+        const btn = document.createElement('button');
+        btn.className = 'option-button';
+        btn.textContent = option;
+        btn.addEventListener('click', () => selectOption(option));
+        inline.appendChild(btn);
+    });
+
+    contentDiv.appendChild(inline);
+    bubble.appendChild(name);
+    bubble.appendChild(contentDiv);
+    chatLog.appendChild(bubble);
+    chatLog.scrollTop = chatLog.scrollHeight;
 }
 
 export function setIsProcessing(value) {
@@ -79,65 +115,85 @@ export function updateCurrentMessage(role, content, isStreaming = false) {
         currentTypingTimeout = null;
     }
 
-    // 更新角色名称
-    if (role === 'user') {
-        characterName.textContent = '你';
-        characterName.style.color = '#90caf9';
-    } else if (role === 'assistant') {
-        // 需要从角色服务获取当前角色
-        const currentCharacter = window.getCurrentCharacter ? window.getCurrentCharacter() : null;
-        if (currentCharacter) {
-            characterName.textContent = currentCharacter.name;
-            characterName.style.color = currentCharacter.color;
-        } else {
-            characterName.textContent = 'AI';
-            characterName.style.color = '#ffeb3b';
-        }
-    } else if (role === 'system') {
-        characterName.textContent = '系统';
-        characterName.style.color = '#4caf50';
+    // 顶部名称始终显示当前角色，不显示“你”
+    const currentCharacter = window.getCurrentCharacter ? window.getCurrentCharacter() : null;
+    if (currentCharacter) {
+        characterName.textContent = currentCharacter.name;
+        characterName.style.color = currentCharacter.color;
+    } else {
+        characterName.textContent = 'AI助手';
+        characterName.style.color = '#ffeb3b';
     }
 
-    currentMessage.textContent = content;
+    // 流式内容在右侧对话板中展示一个临时气泡
+    if (role === 'assistant' && isStreaming && chatLog) {
+        let streaming = document.getElementById('streamingBubble');
+        if (!streaming) {
+            streaming = document.createElement('div');
+            streaming.id = 'streamingBubble';
+            streaming.className = 'chat-bubble assistant';
+            const name = document.createElement('div');
+            name.className = 'name';
+            const currentCharacter = window.getCurrentCharacter ? window.getCurrentCharacter() : null;
+            name.textContent = currentCharacter ? currentCharacter.name : 'AI';
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'content';
+            streaming.appendChild(name);
+            streaming.appendChild(contentDiv);
+            chatLog.appendChild(streaming);
+        }
+        const contentDiv = streaming.querySelector('.content');
+        if (contentDiv) contentDiv.textContent = content;
+        chatLog.scrollTop = chatLog.scrollHeight;
+        return;
+    }
+
+    // 仅当为系统消息时才更新初始系统气泡，避免被后续AI/用户内容覆盖
+    if (role === 'system') {
+        if (currentMessage) currentMessage.textContent = content;
+    }
 }
 
 // 添加消息到历史记录
 export function addToHistory(role, content, customName = null) {
-    messageHistory.push({
-        role: role === 'assistant_continue' ? 'assistant' : role,
-        content: content
-    });
+    const normalizedRole = role === 'assistant_continue' ? 'assistant' : role;
+    messageHistory.push({ role: normalizedRole, content });
 
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `history-message history-${role}`;
+    if (!chatLog) return;
 
-    const roleSpan = document.createElement('div');
-    roleSpan.className = 'history-role';
+    // 移除流式临时气泡（如果存在）
+    const streaming = document.getElementById('streamingBubble');
+    if (streaming && normalizedRole === 'assistant') {
+        streaming.remove();
+    }
 
-    let roleName = '';
-    if (role === 'user') {
-        roleName = '你';
-        roleSpan.textContent = roleName;
-    } else if (role === 'assistant') {
+    const bubble = document.createElement('div');
+    bubble.className = `chat-bubble ${normalizedRole}`;
+
+    const name = document.createElement('div');
+    name.className = 'name';
+    if (normalizedRole === 'user') {
+        name.textContent = '你';
+    } else if (normalizedRole === 'assistant') {
         const currentCharacter = window.getCurrentCharacter ? window.getCurrentCharacter() : null;
-        roleName = customName || (currentCharacter ? currentCharacter.name : 'AI');
-        roleSpan.textContent = roleName;
+        name.textContent = customName || (currentCharacter ? currentCharacter.name : 'AI');
     } else {
-        roleName = '系统';
-        roleSpan.textContent = roleName;
+        name.textContent = '系统';
     }
 
     const contentDiv = document.createElement('div');
-    contentDiv.className = 'history-content';
+    contentDiv.className = 'content';
     contentDiv.textContent = content;
 
-    messageDiv.appendChild(roleSpan);
-    messageDiv.appendChild(contentDiv);
-    historyMessages.appendChild(messageDiv);
+    bubble.appendChild(name);
+    bubble.appendChild(contentDiv);
+    chatLog.appendChild(bubble);
+    chatLog.scrollTop = chatLog.scrollHeight;
 }
 
 // 切换历史记录面板
 export function toggleHistory() {
+    if (!historyModal || !historyMessages) return;
     if (historyModal.style.display === 'flex') {
         historyModal.style.display = 'none';
     } else {
@@ -256,7 +312,7 @@ export function handleConfirmNo() {
 export function disableUserInput() {
     messageInput.disabled = true;
     sendButton.disabled = true;
-    micButton.disabled = true;
+    if (micButton) micButton.disabled = true;
     messageInput.placeholder = "角色正在回复中...";
 }
 
@@ -264,7 +320,7 @@ export function disableUserInput() {
 export function enableUserInput() {
     messageInput.disabled = false;
     sendButton.disabled = false;
-    micButton.disabled = false;
+    if (micButton) micButton.disabled = false;
     messageInput.placeholder = "输入消息...";
 }
 
@@ -337,25 +393,53 @@ export function hideContinuePrompt() {
 
 // 显示选项按钮
 export function showOptionButtons(options) {
-    optionButtons.innerHTML = '';
+    // 优先渲染到最近一条“我”的气泡内部
+    let placedInline = false;
+    if (chatLog) {
+        const userBubbles = chatLog.querySelectorAll('.chat-bubble.user');
+        const lastUser = userBubbles[userBubbles.length - 1];
+        if (lastUser) {
+            // 移除旧的内联选项
+            const existed = lastUser.querySelector('.inline-options');
+            if (existed) existed.remove();
 
-    options.forEach((option, index) => {
-        const button = document.createElement('button');
-        button.className = 'option-button';
-        button.textContent = option;
-        button.addEventListener('click', () => {
-            selectOption(option);
+            const inline = document.createElement('div');
+            inline.className = 'inline-options';
+            options.forEach((option) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-button';
+                btn.textContent = option;
+                btn.addEventListener('click', () => selectOption(option));
+                inline.appendChild(btn);
+            });
+            lastUser.appendChild(inline);
+            placedInline = true;
+        }
+    }
+
+    // 兼容回退到原有容器（如未找到用户气泡）
+    if (!placedInline) {
+        optionButtons.innerHTML = '';
+        options.forEach((option) => {
+            const button = document.createElement('button');
+            button.className = 'option-button';
+            button.textContent = option;
+            button.addEventListener('click', () => selectOption(option));
+            optionButtons.appendChild(button);
         });
-        optionButtons.appendChild(button);
-    });
-
-    optionButtonsContainer.classList.add('show');
+        optionButtonsContainer.classList.add('show');
+    }
 }
 
 // 隐藏选项按钮
 export function hideOptionButtons() {
     optionButtonsContainer.classList.remove('show');
     optionButtons.innerHTML = '';
+    // 移除专用选项气泡
+    if (chatLog) {
+        const holder = chatLog.querySelector('.chat-bubble.user.option-holder');
+        if (holder) holder.remove();
+    }
 }
 
 // 选择选项
@@ -370,3 +454,4 @@ function selectOption(option) {
 
 // 暴露给全局使用
 window.hideOptionButtons = hideOptionButtons;
+window.showOptionsAsUserBubble = showOptionsAsUserBubble;

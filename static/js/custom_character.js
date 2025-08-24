@@ -270,12 +270,6 @@ class CustomCharacterManager {
                 <input type="file" name="mood_image[]" accept="image/*" required>
             </div>
             <div class="mood-cell">
-                <input type="file" name="mood_audio[]" accept="audio/*">
-            </div>
-            <div class="mood-cell">
-                <input type="text" name="mood_ref_text[]" placeholder="音频的内容">
-            </div>
-            <div class="mood-cell">
                 <button type="button" class="remove-mood-btn" onclick="customCharacterManager.removeMoodRow('${rowId}')">×</button>
             </div>
         `;

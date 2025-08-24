@@ -113,13 +113,6 @@ import {
     setCurrentCharacter
 } from './character-service.js';
 
-import { 
-    playAudio, 
-    toggleRecording, 
-    stopCurrentAudio,
-    prefetchAndPlayAudio
-} from './audio-service.js';
-
 import {
     showError,
     hideError,
@@ -135,11 +128,6 @@ let globalStreamProcessor = null;
 // 剧情模式专用的继续输出函数
 function storyContinueOutput() {
     console.log('=== storyContinueOutput called ===');
-    
-    // 自动中断正在播放的语音
-    if (window.stopCurrentAudio) {
-        window.stopCurrentAudio();
-    }
     
     // 尝试从多个位置获取流式处理器
     const processor = globalStreamProcessor || window.globalStreamProcessor;
@@ -218,10 +206,8 @@ async function sendStoryMessage() {
                     const currentCharacter = getCurrentCharacter();
                     const characterName = currentCharacter ? currentCharacter.name : 'AI助手';
                     
-                    if (prefetchAndPlayAudio) {
-                        prefetchAndPlayAudio(newSentenceContent, characterName, currentCharacter);
-                    }
-                    
+                    addToHistory('assistant', newSentenceContent, characterName);
+                    updateCurrentMessage('assistant', newSentenceContent);
                     lastPlayedLength = completeSentences.length;
                     isFirstSentence = false;
                 }
@@ -234,11 +220,6 @@ async function sendStoryMessage() {
             const newContent = fullContent.substring(addedToHistoryLength);
             if (newContent) {
                 const characterName = currentCharacter ? currentCharacter.name : 'AI助手';
-                
-                const unplayedContent = newContent.substring(lastPlayedLength);
-                if (unplayedContent.trim() && prefetchAndPlayAudio) {
-                    prefetchAndPlayAudio(unplayedContent, characterName, currentCharacter);
-                }
                 
                 addToHistory('assistant', newContent, characterName);
                 updateCurrentMessage('assistant', newContent);
@@ -254,11 +235,6 @@ async function sendStoryMessage() {
             const remainingContent = fullContent.substring(addedToHistoryLength);
             if (remainingContent) {
                 const characterName = currentCharacter ? currentCharacter.name : 'AI助手';
-                
-                const unplayedContent = remainingContent.substring(lastPlayedLength);
-                if (unplayedContent.trim() && prefetchAndPlayAudio) {
-                    prefetchAndPlayAudio(unplayedContent, characterName, currentCharacter);
-                }
                 
                 addToHistory('assistant', remainingContent, characterName);
                 updateCurrentMessage('assistant', remainingContent);
@@ -439,14 +415,12 @@ document.addEventListener('DOMContentLoaded', () => {
         loadCharacters();
 
         // 绑定按钮事件
-        const playAudioButton = document.getElementById('playaudioButton');
         const backgroundButton = document.getElementById('backgroundButton');
         const historyButton = document.getElementById('historyButton');
         const closeHistoryButton = document.getElementById('closeHistoryButton');
         const characterButton = document.getElementById('characterButton');
         const closeCharacterButton = document.getElementById('closeCharacterButton');
         const continueButton = document.getElementById('continueButton');
-        const micButton = document.getElementById('micButton');
         const errorCloseButton = document.getElementById('errorCloseButton');
         const sendButton = document.getElementById('sendButton');
         const messageInput = document.getElementById('messageInput');
@@ -454,14 +428,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const clickToContinue = document.getElementById('clickToContinue');
 
         // 绑定对话事件
-        playAudioButton?.addEventListener('click', () => playAudio(getCurrentCharacter(), false));
         backgroundButton?.addEventListener('click', changeBackground);
         historyButton?.addEventListener('click', toggleHistory);
         closeHistoryButton?.addEventListener('click', toggleHistory);
         characterButton?.addEventListener('click', toggleCharacterModal);
         closeCharacterButton?.addEventListener('click', toggleCharacterModal);
         continueButton?.addEventListener('click', storyContinueOutput);
-        micButton?.addEventListener('click', () => toggleRecording(messageInput, micButton, showError));
         errorCloseButton?.addEventListener('click', hideError);
         
         // 绑定剧情模式专用的发送消息事件
@@ -542,20 +514,6 @@ registrationShortcuts({
     b: changeBackground
 });
 
-// TTS开关控制函数
-window.ttsEnabled = true;
-window.toggleTTS = function() {
-    window.ttsEnabled = !window.ttsEnabled;
-    console.log(`TTS已${window.ttsEnabled ? '开启' : '关闭'}`);
-    return window.ttsEnabled;
-};
-
-window.setTTS = function(enabled) {
-    window.ttsEnabled = !!enabled;
-    console.log(`TTS已${window.ttsEnabled ? '开启' : '关闭'}`);
-    return window.ttsEnabled;
-};
-
 // 导入UI服务函数
 import { 
     showOptionButtons,
@@ -582,9 +540,6 @@ window.showContinuePrompt = showContinuePrompt;
 window.hideContinuePrompt = hideContinuePrompt;
 window.setIsPaused = setIsPaused;
 window.hideLoading = hideLoading;
-window.playAudio = (autoPlay = false) => playAudio(getCurrentCharacter(), autoPlay);
-window.stopCurrentAudio = stopCurrentAudio;
-window.prefetchAndPlayAudio = prefetchAndPlayAudio;
 window.handleMoodChange = handleMoodChange;
 window.showError = showError;
 window.sendStoryMessage = sendStoryMessage;

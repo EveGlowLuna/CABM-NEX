@@ -423,7 +423,8 @@ class ChatService:
         messages: Optional[List[Dict[str, str]]] = None, 
         stream: bool = True,
         user_query: str = None,
-        on_token=None
+        on_token=None,
+        mcp_enabled: bool = False
     ) -> Iterator[str]:
         """
         调用对话API（集成记忆检索，仅流式返回）
@@ -433,6 +434,7 @@ class ChatService:
             stream: 是否使用流式输出
             user_query: 用户查询，用于记忆检索和日志记录
             on_token: 可选，流式生成时每个token的回调
+            mcp_enabled: 是否启用MCP工具
         Returns:
             迭代器，每次yield一个字符串token
         Raises:
@@ -458,6 +460,69 @@ class ChatService:
             if not has_system_message:
                 system_prompt = self.config_service.get_system_prompt("default")
                 messages.insert(0, {"role": "system", "content": system_prompt})
+
+        # 如果开启 MCP，在系统提示后面追加一条工具使用说明
+        if mcp_enabled:
+            try:
+                from plugins import mcps
+                tools_desc = mcps.list_tools_for_prompt()
+                # 构建更严格、清晰的工具与输出规范提示
+                lines = [
+                    "[MCP 工具使用说明]",
+                    "你拥有一组可调用的 MCP 工具。在需要时，你可以在你的 JSON 输出中加入 `tool_request` 字段来请求调用工具。",
+                    "",
+                    "[JSON 输出规范] 必须始终且仅返回一个 JSON 对象（不得使用任何代码块标记），字段：",
+                    "- mood: int，必填。当前表情，且必须是其中之一，值为序号，**只写序号**：<[MOODS]>",
+                    "- content: string，必填。请遵守系统提示中对中文标点与禁用换行/markdown/中文括号的要求。",
+                    "- tool_request: object，可选，仅当需要调用工具时包含，结构：",
+                    "    { name: string, args: object, reason: string }",
+                    "示例：",
+                    '{"mood": 2, "content": "我将先读取目标文件以确认内容。", "tool_request": {"name": "read_file", "args": {"file_path": "path/to/file.py", "start_line": 1, "end_line": 60}, "reason": "需要查看文件开头定义"}}',
+                    "",
+                    "[调用流程]",
+                    "- 你可以多次调用工具。每次需要调用时先输出带有 `tool_request` 的单一 JSON 对象；",
+                    "- 等待系统消息返回工具结果（将以 system 消息形式注入会话）；",
+                    "- 根据系统消息中的结果继续思考并再次输出新的单一 JSON（可再次包含新的 `tool_request`），直到完成。",
+                    "- 若无需工具，仍需输出完整的 JSON（至少包含 mood 与 content）。",
+                    "",
+                    "[重要提醒]",
+                    "- 当工具执行成功后，系统会明确告知你\"工具已成功执行\"",
+                    "- 此时你应该分析返回的结果数据，继续对话或完成任务",
+                    "- 不要重复请求已经成功执行的相同工具，除非确实需要新的操作",
+                    "- 只有在需要新的工具操作时才再次使用 `tool_request` 字段",
+                    "",
+                    "[工具列表]"
+                ]
+                for name, meta in tools_desc.items():
+                    args_desc = ", ".join(f"{k}:{v}" for k, v in meta.get("args", {}).items())
+                    lines.append(f"- {name}: {meta.get('desc','')} 参数: {args_desc}")
+                    ex = meta.get("example")
+                    if isinstance(ex, dict):
+                        try:
+                            import json as _json
+                            lines.append("  示例调用：" + _json.dumps(ex, ensure_ascii=False))
+                        except Exception:
+                            pass
+                lines.append("请仅在必要时调用工具，并在 reason 中简要说明原因。工具返回结果会作为 system 消息插入到会话中，请根据结果继续完成任务。")
+                lines.append("")
+                lines.append("[重要提醒] 当工具执行成功后，系统会返回结果作为 system 消息。此时你应该：")
+                lines.append("- 分析工具返回的结果数据")
+                lines.append("- 基于结果继续对话或完成任务")
+                lines.append("- 不要重复请求已经执行成功的相同工具")
+                lines.append("- 只有在需要新的工具操作时才再次使用 tool_request")
+                mcp_tool_prompt = "\n".join(lines)
+                # 在第一条 system 之后追加一条新的 system 说明，避免破坏原角色提示词
+                # 如果没有 system，则插入开头
+                inserted = False
+                for idx, msg in enumerate(messages):
+                    if msg.get("role") == "system":
+                        messages.insert(idx + 1, {"role": "system", "content": mcp_tool_prompt})
+                        inserted = True
+                        break
+                if not inserted:
+                    messages.insert(0, {"role": "system", "content": mcp_tool_prompt})
+            except Exception as e:
+                self.logger.error(f"注入MCP工具说明失败: {e}")
         
         # 如果有用户查询，进行记忆和角色详细信息检索
         memory_context = ""
@@ -546,7 +611,7 @@ class ChatService:
                 
                 def stream_generator():
                     stream_ans = self.client.chat.completions.create(
-                        model=os.getenv("CHAT_MODEL"),
+                        model=self.chat_model,
                         messages=messages,
                         stream=True,
                         response_format={"type": "json_object"},

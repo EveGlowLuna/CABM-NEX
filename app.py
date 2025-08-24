@@ -22,7 +22,6 @@ if not need_config:
     app_config = config_service.get_app_config()
     static_folder = str(project_root / app_config["static_folder"])
     template_folder = str(project_root / app_config["template_folder"])
-    from services.ttsapi_service import ttsService
 else:
     static_folder = str(project_root / "static")
     template_folder = str(project_root / "templates")
@@ -31,12 +30,8 @@ else:
 app = Flask(__name__, static_folder=static_folder, template_folder=template_folder)
 app.project_root = project_root
 # 注册蓝图
-if not need_config:
-    from services.ttsapi_service import ttsService
-    app.tts = ttsService()          # 挂到 app 上
-else:
-    app.tts = None
 register_blueprints(app)
+
 # app.py
 
 # MIME 类型

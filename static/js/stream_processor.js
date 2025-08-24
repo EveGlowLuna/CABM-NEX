@@ -6,7 +6,10 @@
 // 常量配置
 const OUTPUT_DELAY = 30; // 每个字符的输出间隔（毫秒）
 const END_MARKER = "<END>"; // 结束标记符号
-const PAUSE_MARKERS = ['。', '？', '！', '…', '~', ' ', '♪','...']; // 暂停输出的分隔符号
+// 关闭断句分割：启用后不会在标点处分段/暂停
+const NO_SEGMENTATION = true;
+// 暂停输出的分隔符号：仅标点，不在空格处分段（当 NO_SEGMENTATION=false 时生效）
+const PAUSE_MARKERS = ['。', '？', '！', '…', '~', '♪', '.', '!', '?'];
 
 class StreamProcessor {
     constructor() {
@@ -90,19 +93,16 @@ class StreamProcessor {
             return;
         }
 
-        // 检查是否需要分割：上一个字符是暂停标记，当前字符不是暂停标记
-        if (this.lastCharWasPauseMarker && !PAUSE_MARKERS.includes(char)) {
-            // 检查下一个字符是否是结束标记
-            const nextChar = this.buffer.length > 0 ? this.buffer[0] : null;
-
-            // 只有在下一个字符不是结束标记时才暂停
-            if (nextChar !== END_MARKER) {
-                this.handlePause();
-                // 重置标记
-                this.lastCharWasPauseMarker = false;
-                // 将当前字符放回缓冲区开头，下次处理时再处理
-                this.buffer.unshift(char);
-                return;
+        // 检查是否需要分割（当 NO_SEGMENTATION=false 时才启用分割暂停）
+        if (!NO_SEGMENTATION) {
+            if (this.lastCharWasPauseMarker && !PAUSE_MARKERS.includes(char)) {
+                const nextChar = this.buffer.length > 0 ? this.buffer[0] : null;
+                if (nextChar !== END_MARKER) {
+                    this.handlePause();
+                    this.lastCharWasPauseMarker = false;
+                    this.buffer.unshift(char);
+                    return;
+                }
             }
         }
 
@@ -114,8 +114,12 @@ class StreamProcessor {
             this.onCharacterCallback(this.paragraphs.join('') + this.currentParagraph);
         }
 
-        // 更新暂停标记状态
-        this.lastCharWasPauseMarker = PAUSE_MARKERS.includes(char);
+        // 更新暂停标记状态（当启用分割时）
+        if (!NO_SEGMENTATION) {
+            this.lastCharWasPauseMarker = PAUSE_MARKERS.includes(char);
+        } else {
+            this.lastCharWasPauseMarker = false;
+        }
 
         // 继续处理下一个字符
         this.processingTimeout = setTimeout(() => {
@@ -216,16 +220,22 @@ class StreamProcessor {
         this.isPaused = false;
         this.currentParagraph = '';
         this.paragraphs = [];
-        this.lastCharWasPauseMarker = false; // 重置暂停标记状态
+        this.lastCharWasPauseMarker = false;
     }
-
-
 
     /**
      * 获取当前完整内容
      */
     getFullContent() {
         return this.paragraphs.join('') + this.currentParagraph;
+    }
+
+    /**
+     * 获取包含缓冲区在内的完整内容（用于在系统提示到达时结算显示）
+     */
+    getFullContentIncludingBuffer() {
+        const pending = this.buffer.filter(ch => ch !== END_MARKER).join('');
+        return this.paragraphs.join('') + this.currentParagraph + pending;
     }
 
     /**

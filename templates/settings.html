@@ -109,35 +109,20 @@
                         </label>
                     </div>
                 </div>
-                
-                <!-- 预留更多设置区域 -->
-                <div class="settings-section" style="opacity: 0.5;">
-                    <h3>音频设置</h3>
+
+                <div class="settings-section">
+                    <h3>聊天气泡颜色</h3>
                     <div class="setting-item">
-                        <label>
-                            <input type="checkbox" disabled>
-                            <span>启用背景音乐 (占位)</span>
+                        <label for="userMsgColor">
+                            <span>用户消息颜色</span>
                         </label>
+                        <input type="color" id="userMsgColor" value="#ffd54f" title="选择用户消息颜色">
                     </div>
-                </div>
-                
-                <div class="settings-section" style="opacity: 0.5;">
-                    <h3>聊天设置</h3>
                     <div class="setting-item">
-                        <label>
-                            <input type="checkbox" disabled>
-                            <span>自动保存聊天记录 (占位)</span>
+                        <label for="aiMsgColor">
+                            <span>AI消息颜色</span>
                         </label>
-                    </div>
-                </div>
-                
-                <div class="settings-section" style="opacity: 0.5;">
-                    <h3>主题设置</h3>
-                    <div class="setting-item">
-                        <label>
-                            <input type="checkbox" disabled>
-                            <span>深色模式 (占位)</span>
-                        </label>
+                        <input type="color" id="aiMsgColor" value="#64b5f6" title="选择AI消息颜色">
                     </div>
                 </div>
             </div>
@@ -148,6 +133,8 @@
         // 加载保存的设置
         document.addEventListener('DOMContentLoaded', function() {
             const showLogoToggle = document.getElementById('showLogoToggle');
+            const userMsgColor = document.getElementById('userMsgColor');
+            const aiMsgColor = document.getElementById('aiMsgColor');
             
             // 从localStorage加载设置
             const showLogo = localStorage.getItem('showLogoSplash') !== 'false';
@@ -156,6 +143,29 @@
             // 保存设置
             showLogoToggle.addEventListener('change', function() {
                 localStorage.setItem('showLogoSplash', this.checked);
+            });
+
+            // 读取并应用消息颜色设置
+            const savedUserColor = localStorage.getItem('userMsgColor') || '#ffd54f';
+            const savedAiColor = localStorage.getItem('aiMsgColor') || '#64b5f6';
+            userMsgColor.value = savedUserColor;
+            aiMsgColor.value = savedAiColor;
+
+            // 应用到CSS变量（全局）
+            const applyColors = () => {
+                document.documentElement.style.setProperty('--user-msg-color', userMsgColor.value);
+                document.documentElement.style.setProperty('--ai-msg-color', aiMsgColor.value);
+            };
+            applyColors();
+
+            // 变更时保存并应用
+            userMsgColor.addEventListener('input', () => {
+                localStorage.setItem('userMsgColor', userMsgColor.value);
+                applyColors();
+            });
+            aiMsgColor.addEventListener('input', () => {
+                localStorage.setItem('aiMsgColor', aiMsgColor.value);
+                applyColors();
             });
         });
     </script>
