@@ -385,5 +385,5 @@ python start.py
 <br />
 <br />
 
-# 恭喜你读完了整篇README收下彩蛋吧
+# 恭喜你读完了整篇README，收下彩蛋吧
 [彩蛋](https://www.bilibili.com/video/BV1btJHzGEUE?t=119.5)
