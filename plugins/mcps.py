@@ -7,6 +7,7 @@ from typing import Dict, Any
 TOOLS = {
     "read_file": file.read_file,
     "update_file": file.update_file,
+    "create_file": file.create_file,
     "search_and_fetch": searcher.search_and_fetch,
     "run_shell": shell.run_shell
 }
@@ -39,6 +40,19 @@ TOOL_DESCRIPTIONS = {
                 "name": "update_file",
                 "args": {"file_path": "path/to/file.py", "content": "new content"},
                 "reason": "需要修改文件"
+            }
+        }
+    },
+    "create_file": {
+        "desc": "创建文件。返回操作结果字符串。",
+        "args": {
+            "file_path": "字符串，文件路径"
+        },
+        "example": {
+            "tool_request": {
+                "name": "create_file",
+                "args": {"file_path": "path/to/file.py"},
+                "reason": "需要创建文件"
             }
         }
     },

@@ -1,5 +1,18 @@
 import os
 
+def create_file(file_path: str) -> bool:
+    """
+    创建文件函数
+    :param file_path: 文件路径
+    :return: 是否创建成功
+    """
+    try:
+        with open(file_path, 'w'):
+            pass
+        return True
+    except Exception as e:
+        return False
+
 
 def read_file(file_path: str, start_line: str, end_line: str) -> str:
     try:
