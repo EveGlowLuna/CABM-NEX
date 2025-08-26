@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TCP通信配置 - CABM</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/sci-fi-theme.css">
+    <link rel="stylesheet" href="/static/css/continue-prompt.css">
+    <link rel="stylesheet" href="/static/css/tcp-modern.css">
+    <style>
+        /* 仅在TCP配置页面覆盖全局布局，恢复滚动 */
+        .container {
+            height: auto !important;
+            min-height: 100vh;
+            overflow-y: auto !important;
+            overflow-x: hidden;
+        }
+
+        /* 让当前页面参与正常文档流并自适应高度 */
+        #tcpPage.page {
+            position: relative !important;
+            height: auto !important;
+            min-height: 100vh;
+        }
+
+        /* 背景采用固定定位，不影响内容滚动 */
+        .background-container,
+        .background-image,
+        .background-overlay {
+            position: fixed !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div id="tcpPage" class="page active">
+            <div class="background-container">
+                <div class="background-image default-background"></div>
+                <div class="background-overlay"></div>
+            </div>
+
+            <div class="tcp-modern-container">
+                <div class="tcp-modern-header">
+                    <a href="/" class="btn back-btn">返回</a>
+                    <h2>CABM - TCP通信配置</h2>
+                </div>
+
+                <!-- 登录部分 -->
+                <div class="tcp-modern-card">
+                    <h3>OpenFrp 登录</h3>
+
+                    <!-- TCP连接信息显示区域 -->
+                    <div id="tunnelInfo" class="tcp-modern-info-panel" style="display: none;">
+                        <h4>🌐 TCP通道已创建</h4>
+                        <p id="tunnelAddress">正在获取连接地址...</p>
+                        <div class="tcp-modern-info-note">
+                            <strong>使用说明：</strong>您可以通过以上地址访问CABM服务，远程端口会自动生成并随机分配。
+                        </div>
+                    </div>
+
+                    <div id="loginStatus" class="tcp-modern-message" style="display: none;"></div>
+                    <div class="tcp-modern-form-group">
+                        <label for="token">用户Token:</label>
+                        <input type="password" id="token" class="tcp-modern-form-control" placeholder="输入您的OpenFrp用户token" autocomplete="off">
+                        <small class="tcp-modern-help-text">
+                            获取token: 登录OpenFrp控制台 → 个人中心 → 第三方客户端安全登录
+                        </small>
+                    </div>
+                    <div class="tcp-modern-btn-group">
+                        <button id="loginBtn" class="tcp-modern-btn tcp-modern-btn-primary">登录</button>
+                        <button id="checkStatusBtn" class="tcp-modern-btn tcp-modern-btn-secondary">检查状态</button>
+                        <button id="testFrpcBtn" class="tcp-modern-btn tcp-modern-btn-info" style="display: none;">测试Frpc</button>
+                        <button id="checkRestartBtn" class="tcp-modern-btn tcp-modern-btn-warning" style="display: none;">检查并重启</button>
+                    </div>
+                    <div id="loginInfo" class="tcp-modern-info-panel">
+                        <h4>ℹℹ️ 使用说明</h4>
+                        <ul>
+                            <li>Token是您访问OpenFrp API的密钥，请妥善保管</li>
+                            <li>登录后系统将自动创建CABMTCPTUNNEL，实现网络穿透</li>
+                            <li>不同网络的设备可以通过生成的远程端口访问您的CABM服务</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- 创建隧道部分 -->
+                <div class="tcp-modern-card" id="createSection" style="display: none;">
+                    <h3>创建TCP隧道</h3>
+                    <div id="createMessage" class="tcp-modern-message" style="display: none;"></div>
+                    <div class="tcp-modern-info-panel">
+                        <h4>ℹ️ 自动配置说明</h4>
+                        <ul>
+                            <li>隧道名称：固定为 <strong>CABMTCPTUNNEL</strong></li>
+                            <li>本地端口：自动使用CABM运行端口 <strong>5000</strong></li>
+                            <li>远程端口：自动生成随机端口</li>
+                            <li>节点选择：优先 '#9 义乌电信😰'，否则选择第一个可用节点。<br/>可用条件：status == 200 且 非 fullyLoaded。</li>
+                        </ul>
+                    </div>
+                    <button id="createTunnelBtn" class="tcp-modern-btn tcp-modern-btn-primary">创建CABMTCPTUNNEL</button>
+                </div>
+
+                <!-- 隧道列表部分 -->
+                <div class="tcp-modern-card" id="tunnelListSection" style="display: none;">
+                    <div class="tcp-modern-tunnel-header">
+                        <h3>隧道列表</h3>
+                        <div class="tcp-modern-tunnel-actions-header">
+                            <button id="refreshTunnelsBtn" class="tcp-modern-btn tcp-modern-btn-secondary">刷新列表</button>
+                        </div>
+                    </div>
+                    <div id="tunnelList" class="tcp-modern-tunnel-list">
+                        <!-- 隧道列表将在这里动态加载 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 模态框 -->
+        <div class="modal" id="confirmModal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>确认</h3>
+                    <button id="closeConfirmButton" class="btn close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p id="confirmMessage">确定要执行此操作吗？</p>
+                    <div class="confirm-buttons">
+                        <button id="confirmYesButton" class="btn primary-btn">确定</button>
+                        <button id="confirmNoButton" class="btn secondary-btn">取消</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 加载指示器 -->
+        <div class="loading-container" id="loadingIndicator">
+            <div class="loading-spinner"></div>
+            <p>处理中...</p>
+        </div>
+
+        <!-- 错误容器 -->
+        <div class="error-container" id="errorContainer">
+            <p id="errorMessage"></p>
+            <button id="errorCloseButton" class="btn">关闭</button>
+        </div>
+    </div>
+
+    <script>
+        class TCPManager {
+            constructor() {
+                this.selectedNodeId = null;
+                this.runningProcesses = {}; // 跟踪运行中的进程
+                this.init();
+            }
+
+            init() {
+                this.bindEvents();
+                this.checkLoginStatus();
+                this.bindModalEvents();
+            }
+
+            bindEvents() {
+                // 登录相关
+                document.getElementById('loginBtn').addEventListener('click', () => this.login());
+                document.getElementById('checkStatusBtn').addEventListener('click', () => this.checkLoginStatus());
+                document.getElementById('testFrpcBtn').addEventListener('click', () => this.testFrpc());
+                document.getElementById('checkRestartBtn').addEventListener('click', () => this.checkAndRestartTunnel());
+
+                // 隧道相关
+                document.getElementById('createTunnelBtn').addEventListener('click', () => this.createTunnel());
+                document.getElementById('refreshTunnelsBtn').addEventListener('click', () => this.loadTunnels());
+            }
+
+            bindModalEvents() {
+                // 确认模态框
+                document.getElementById('closeConfirmButton').addEventListener('click', () => this.closeConfirmModal());
+                document.getElementById('confirmNoButton').addEventListener('click', () => this.closeConfirmModal());
+
+                // 错误容器
+                document.getElementById('errorCloseButton').addEventListener('click', () => this.closeError());
+            }
+
+            async login() {
+                const token = document.getElementById('token').value.trim();
+                const loginBtn = document.getElementById('loginBtn');
+
+                if (!token) {
+                    this.showMessage('loginStatus', '❌❌ 请输入用户token', 'error');
+                    document.getElementById('token').focus();
+                    return;
+                }
+
+                if (token.length < 10) {
+                    this.showMessage('loginStatus', '❌❌ Token格式不正确，请检查', 'error');
+                    return;
+                }
+
+                // 显示加载状态
+                loginBtn.disabled = true;
+                loginBtn.textContent = '登录中...';
+
+                try {
+                    const response = await fetch('/api/tcp/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ token })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+
+                    const result = await response.json();
+                    if (result.success) {
+                        this.showMessage('loginStatus', '✅ 登录成功！', 'success');
+                        this.showCreateSection();
+                         await this.loadTunnels();
+
+                         // 显示检查、测试和重启按钮
+                         document.getElementById('testFrpcBtn').style.display = 'inline-block';
+                         document.getElementById('checkRestartBtn').style.display = 'inline-block';
+
+                        // 隐藏使用说明，显示成功信息
+                        document.getElementById('loginInfo').style.display = 'none';
+                    } else {
+                        this.showMessage('loginStatus', '❌❌ ' + (result.error || '登录失败，请检查token'), 'error');
+                        // 显示使用说明帮助用户
+                        document.getElementById('loginInfo').style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('登录错误:', error);
+                    this.showMessage('loginStatus', '❌❌ 网络错误: ' + error.message, 'error');
+                    document.getElementById('loginInfo').style.display = 'block';
+                } finally {
+                    // 恢复按钮状态
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = '登录';
+                }
+            }
+
+            async checkLoginStatus() {
+                const checkBtn = document.getElementById('checkStatusBtn');
+                checkBtn.disabled = true;
+                checkBtn.textContent = '检查中...';
+
+                try {
+                    const response = await fetch('/api/tcp/status');
+                    const result = await response.json();
+
+                    if (result.success && result.is_logged_in) {
+                        this.showMessage('loginStatus', '✅ 已登录到OpenFrp', 'success');
+                        this.showCreateSection();
+                         await this.loadTunnels();
+
+                         // 显示检查、测试和重启按钮
+                         document.getElementById('testFrpcBtn').style.display = 'inline-block';
+                         document.getElementById('checkRestartBtn').style.display = 'inline-block';
+
+                        document.getElementById('loginInfo').style.display = 'none';
+                    } else {
+                        this.showMessage('loginStatus', '❌❌ 未登录，请先登录', 'error');
+                        document.getElementById('loginInfo').style.display = 'block';
+                    }
+                } catch (error) {
+                    console.error('检查状态错误:', error);
+                    this.showMessage('loginStatus', '❌❌ 检查状态失败: ' + error.message, 'error');
+                } finally {
+                    checkBtn.disabled = false;
+                    checkBtn.textContent = '检查状态';
+                }
+            }
+
+            async loadNodes() {
+                try {
+                    const response = await fetch('/api/tcp/nodes');
+                    const result = await response.json();
+                    if (result.success) {
+                        this.renderNodes(result.data.list);
+                    } else {
+                        console.error('加载节点失败:', result.error);
+                    }
+                } catch (error) {
+                    console.error('加载节点失败:', error);
+                }
+            }
+
+            renderNodes(nodes) {
+                const nodeList = document.getElementById('nodeList');
+                nodeList.innerHTML = '';
+
+                nodes.forEach(node => {
+                    if (node.status !== 200) return; // 只显示正常节点
+
+                    const nodeItem = document.createElement('div');
+                    nodeItem.className = 'tcp-modern-node-item';
+                    nodeItem.innerHTML = `
+                        <strong>${node.name}</strong>
+                        <small>${node.hostname || '地址未公开'} | 带宽: ${node.bandwidth}M</small>
+                    `;
+                    nodeItem.addEventListener('click', () => this.selectNode(node.id, nodeItem));
+                    nodeList.appendChild(nodeItem);
+                });
+            }
+
+            selectNode(nodeId, element) {
+                // 清除之前选择
+                document.querySelectorAll('.tcp-modern-node-item').forEach(item => {
+                    item.classList.remove('selected');
+                });
+
+                // 选择当前节点
+                element.classList.add('selected');
+                this.selectedNodeId = nodeId;
+            }
+
+            async createTunnel() {
+                try {
+                    const response = await fetch('/api/tcp/create', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            local_addr: '127.0.0.1',
+                            local_port: 5000  // CABM默认端口
+                        })
+                    });
+
+                    const result = await response.json();
+                    if (result.success) {
+                        this.showMessage('createMessage', 'CABMTCPTUNNEL创建成功', 'success');
+                        this.loadTunnels();
+                        this.updateTunnelInfo();
+                    } else {
+                        this.showMessage('createMessage', result.error, 'error');
+                    }
+                } catch (error) {
+                    this.showMessage('createMessage', '创建失败: ' + error.message, 'error');
+                }
+            }
+
+            async loadTunnels() {
+                try {
+                    const response = await fetch('/api/tcp/tunnels');
+                    const result = await response.json();
+
+                    if (result.success) {
+                        if (result.data && result.data.list) {
+                            this.renderTunnels(result.data.list);
+                            // 检查是否有CABMTCPTUNNEL，如果有则显示连接信息
+                            const hasCabmTunnel = result.data.list.some(tunnel => tunnel.proxyName === 'CABMTCPTUNNEL');
+                            if (hasCabmTunnel) {
+                                this.updateTunnelInfo();
+                            } else {
+                                document.getElementById('tunnelInfo').style.display = 'none';
+                            }
+                        } else {
+                            this.renderTunnels([]);
+                            document.getElementById('tunnelInfo').style.display = 'none';
+                        }
+                    } else {
+                        console.error('加载隧道失败:', result.error);
+                        this.showMessage('tunnelList', '加载隧道失败: ' + result.error, 'error');
+                        document.getElementById('tunnelInfo').style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('加载隧道失败:', error);
+                    this.showMessage('tunnelList', '加载隧道失败: ' + error.message, 'error');
+                }
+            }
+
+            renderTunnels(tunnels) {
+                const tunnelList = document.getElementById('tunnelList');
+                tunnelList.innerHTML = '';
+
+                if (!tunnels || tunnels.length === 0) {
+                    tunnelList.innerHTML = '<p style="color: rgba(255,255,255,0.7); text-align: center;">暂无隧道</p>';
+                    return;
+                }
+
+                tunnels.forEach(tunnel => {
+                    if (tunnel.proxyType !== 'tcp') return; // 只显示TCP隧道
+
+                    const tunnelItem = document.createElement('div');
+                    tunnelItem.className = 'tcp-modern-tunnel-item';
+
+                    // 改进的状态显示逻辑
+                    let statusClass, statusText;
+                    if (tunnel.online) {
+                        statusClass = 'tcp-modern-status-online';
+                        statusText = '在线';
+                    } else {
+                        // 检查是否有本地进程在运行
+                        const isRunning = this.runningProcesses && this.runningProcesses[tunnel.id];
+                        if (isRunning) {
+                            statusClass = 'tcp-modern-status-connecting';
+                            statusText = '连接中...';
+                        } else {
+                            statusClass = 'tcp-modern-status-offline';
+                            statusText = '离线';
+                        }
+                    }
+
+                    tunnelItem.innerHTML = `
+                        <div class="tcp-modern-tunnel-info">
+                            <strong>${tunnel.proxyName}</strong>
+                            <small>
+                                <span class="tcp-modern-status">
+                                    <span class="tcp-modern-status-indicator ${statusClass}"></span>${statusText}
+                                </span>
+                                本地: ${tunnel.localIp}:${tunnel.localPort} | 远程: ${tunnel.remotePort}
+                            </small>
+                        </div>
+                        <div class="tcp-modern-tunnel-actions">
+                            <button class="tcp-modern-action-btn tcp-modern-action-btn-start" onclick="tcpManager.startTunnel(${tunnel.id})">启动</button>
+                            <button class="tcp-modern-action-btn tcp-modern-action-btn-stop" onclick="tcpManager.stopTunnel(${tunnel.id})">停止</button>
+                            <button class="tcp-modern-action-btn tcp-modern-action-btn-delete" onclick="tcpManager.removeTunnel(${tunnel.id})">删除</button>
+                        </div>
+                    `;
+
+                    tunnelList.appendChild(tunnelItem);
+                });
+            }
+
+            async startTunnel(proxyId) {
+                try {
+                    // 标记为启动中
+                    this.runningProcesses[proxyId] = true;
+
+                    const response = await fetch(`/api/tcp/start/${proxyId}`, { method: 'POST' });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        alert('启动成功: ' + result.message);
+
+                        // 启动成功，刷新隧道列表
+                        this.loadTunnels();
+
+                        // 设置定时器检查连接状态
+                        setTimeout(() => {
+                            this.checkTunnelConnection(proxyId);
+                        }, 5000); // 5秒后检查
+
+                    } else {
+                        // 启动失败，清除标记
+                        delete this.runningProcesses[proxyId];
+                        alert('启动失败: ' + result.error);
+                        this.loadTunnels();
+                    }
+                } catch (error) {
+                    // 启动失败，清除标记
+                    delete this.runningProcesses[proxyId];
+                    alert('启动失败: ' + error.message);
+                    this.loadTunnels();
+                }
+            }
+
+            async checkTunnelConnection(proxyId) {
+                try {
+                    const response = await fetch(`/api/tcp/status/${proxyId}`);
+                    const result = await response.json();
+
+                    if (result.success) {
+                        if (result.status === 'online') {
+                            // 连接成功
+                            delete this.runningProcesses[proxyId];
+                            this.loadTunnels();
+                            this.showMessage('tunnelList', '✅ 隧道连接成功！', 'success');
+                        } else if (result.status === 'running') {
+                            // 仍在连接中，继续检查
+                            setTimeout(() => {
+                                this.checkTunnelConnection(proxyId);
+                            }, 3000);
+                        } else {
+                            // 连接失败
+                            delete this.runningProcesses[proxyId];
+                            this.loadTunnels();
+                            this.showMessage('tunnelList', '❌ 隧道连接失败，请检查配置', 'error');
+                        }
+                    } else {
+                        // 状态检查失败，清除标记
+                        delete this.runningProcesses[proxyId];
+                        this.loadTunnels();
+                    }
+                } catch (error) {
+                    console.error('检查连接状态失败:', error);
+                    delete this.runningProcesses[proxyId];
+                    this.loadTunnels();
+                }
+            }
+
+            async stopTunnel(proxyId) {
+                try {
+                    const response = await fetch(`/api/tcp/stop/${proxyId}`, { method: 'POST' });
+                    const result = await response.json();
+                    if (result.success) {
+                        alert('停止成功');
+                        this.loadTunnels();
+                    } else {
+                        alert('停止失败: ' + result.error);
+                    }
+                } catch (error) {
+                    alert('停止失败: ' + error.message);
+                }
+            }
+
+            async removeTunnel(proxyId) {
+                if (!confirm('确定要删除这个隧道吗？')) return;
+
+                try {
+                    const response = await fetch(`/api/tcp/remove/${proxyId}`, { method: 'DELETE' });
+                    const result = await response.json();
+                    if (result.success) {
+                        alert('删除成功');
+                        this.loadTunnels();
+                    } else {
+                        alert('删除失败: ' + result.error);
+                    }
+                } catch (error) {
+                    alert('删除失败: ' + error.message);
+                }
+            }
+
+            showCreateSection() {
+                document.getElementById('createSection').style.display = 'block';
+                document.getElementById('tunnelListSection').style.display = 'block';
+            }
+
+            showMessage(elementId, message, type) {
+                const element = document.getElementById(elementId);
+                element.innerHTML = message; // 使用innerHTML支持表情符号
+                element.className = `tcp-modern-message tcp-modern-message-${type}`;
+                element.style.display = 'block';
+
+                // 根据消息类型设置不同的显示时间
+                const duration = type === 'error' ? 8000 : 5000;
+
+                // 清除之前的定时器
+                if (element.hideTimeout) {
+                    clearTimeout(element.hideTimeout);
+                }
+
+                element.hideTimeout = setTimeout(() => {
+                    element.style.display = 'none';
+                }, duration);
+            }
+
+            // 模态框方法
+            showConfirmModal(message, onConfirm) {
+                document.getElementById('confirmMessage').textContent = message;
+                document.getElementById('confirmModal').style.display = 'flex';
+                this.confirmCallback = onConfirm;
+            }
+
+            closeConfirmModal() {
+                document.getElementById('confirmModal').style.display = 'none';
+                if (this.confirmCallback) {
+                    this.confirmCallback = null;
+                }
+            }
+
+            // 错误处理方法
+            showError(message) {
+                document.getElementById('errorMessage').textContent = message;
+                document.getElementById('errorContainer').style.display = 'block';
+            }
+
+            closeError() {
+                document.getElementById('errorContainer').style.display = 'none';
+            }
+
+            // 加载指示器方法
+            showLoading() {
+                document.getElementById('loadingIndicator').style.display = 'flex';
+            }
+
+            hideLoading() {
+                document.getElementById('loadingIndicator').style.display = 'none';
+            }
+
+            // 检查并重启隧道方法
+            async testFrpc() {
+                const btn = document.getElementById('testFrpcBtn');
+                const originalText = btn.textContent;
+                btn.disabled = true;
+                btn.textContent = '测试中...';
+
+                try {
+                    const response = await fetch('/api/tcp/test_frpc', { method: 'POST' });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        this.showMessage('loginStatus', '✅ ' + result.message, 'success');
+                    } else {
+                        this.showMessage('loginStatus', '❌❌ Frpc测试失败: ' + result.error, 'error');
+                    }
+                } catch (error) {
+                    console.error('测试frpc错误:', error);
+                    this.showMessage('loginStatus', '❌❌ 测试frpc失败: ' + error.message, 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+            }
+
+            async checkAndRestartTunnel() {
+                const btn = document.getElementById('checkRestartBtn');
+                const originalText = btn.textContent;
+                btn.disabled = true;
+                btn.textContent = '检查中...';
+
+                try {
+                    const response = await fetch('/api/tcp/check_restart', { method: 'POST' });
+                    const result = await response.json();
+
+                    if (result.success) {
+                        if (result.restarted) {
+                            this.showMessage('loginStatus', '✅ 隧道已重启', 'success');
+                        } else {
+                            this.showMessage('loginStatus', '✅ 隧道端口匹配，无需重启', 'success');
+                        }
+                        this.loadTunnels();
+                        this.updateTunnelInfo();
+                    } else {
+                        this.showMessage('loginStatus', '❌❌ ' + result.error, 'error');
+                    }
+                } catch (error) {
+                    console.error('检查重启错误:', error);
+                    this.showMessage('loginStatus', '❌❌ 检查重启失败: ' + error.message, 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                }
+            }
+
+            // 更新隧道信息显示
+            async updateTunnelInfo() {
+                try {
+                    const response = await fetch('/api/tcp/connect_address');
+                    const result = await response.json();
+
+                    const tunnelInfo = document.getElementById('tunnelInfo');
+                    const tunnelAddress = document.getElementById('tunnelAddress');
+
+                    if (result.success) {
+                        tunnelAddress.textContent = `连接地址: ${result.address}`;
+                        tunnelInfo.style.display = 'block';
+                    } else {
+                        tunnelAddress.textContent = '暂无可用连接地址';
+                        tunnelInfo.style.display = 'none';
+                    }
+                } catch (error) {
+                    console.error('获取连接地址失败:', error);
+                    document.getElementById('tunnelInfo').style.display = 'none';
+                }
+            }
+        }
+
+        // 全局实例
+        const tcpManager = new TCPManager();
+
+        // 处理确认模态框的确认按钮
+        document.getElementById('confirmYesButton').addEventListener('click', () => {
+            if (tcpManager.confirmCallback) {
+                tcpManager.confirmCallback();
+                tcpManager.closeConfirmModal();
+            }
+        });
+    </script>
+    <script src="/static/js/logo.js"></script>
+    <script src="/static/js/sci-fi-effects.js"></script>
+</body>
+</html>

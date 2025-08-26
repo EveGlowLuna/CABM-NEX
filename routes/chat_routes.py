@@ -21,7 +21,6 @@ need_config = not config_service.initialize()
 if not need_config:
     from services.chat_service import chat_service
     from services.image_service import image_service
-    from services.scene_service import scene_service
     from services.option_service import option_service
     from utils.api_utils import APIError
 
@@ -82,8 +81,6 @@ def home():
 @bp.route('/chat')
 def chat_page():
     try:
-        if getattr(chat_service, "story_mode", False):
-            chat_service.exit_story_mode()
         current_character = chat_service.get_character_config()
         if current_character and "id" in current_character:
             chat_service.set_character(current_character["id"])
@@ -108,10 +105,7 @@ def chat_page():
     if not os.path.exists(character_image_path):
         print(f"警告: 默认角色图片不存在: {character_image_path}")
 
-    current_scene = scene_service.get_current_scene()
-    scene_data = current_scene.to_dict() if current_scene else None
     app_config = config_service.get_app_config()
-    show_scene_name = app_config.get("show_scene_name", True)
 
     last_sentence = ""
     try:
@@ -132,8 +126,6 @@ def chat_page():
     return render_template(
         'chat.html',
         background_url=background_url,
-        current_scene=scene_data,
-        show_scene_name=show_scene_name,
         last_sentence=last_sentence,
         plugin_inject_scripts=plugin_inject_scripts
     )
@@ -516,19 +508,12 @@ def chat_stream():
                         if full_response:
                             chat_service.add_message("assistant", full_response)
                             try:
-                                if chat_service.story_mode and chat_service.current_story_id:
-                                    chat_service.memory_service.add_story_conversation(
-                                        user_message=message,
-                                        assistant_message=full_response,
-                                        story_id=chat_service.current_story_id
-                                    )
-                                else:
-                                    character_id = chat_service.config_service.current_character_id or "default"
-                                    chat_service.memory_service.add_conversation(
-                                        user_message=message,
-                                        assistant_message=full_response,
-                                        character_name=character_id
-                                    )
+                                character_id = chat_service.config_service.current_character_id or "default"
+                                chat_service.memory_service.add_conversation(
+                                    user_message=message,
+                                    assistant_message=full_response,
+                                    character_name=character_id
+                                )
                             except Exception as e:
                                 print(f"添加对话到记忆数据库失败: {e}")
                             try:

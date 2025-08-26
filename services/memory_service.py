@@ -60,7 +60,7 @@ class MemoryService:
                 self.logger.info(f"初始化角色记忆数据库: {character_name}")
             # 初始化路由器（角色维度）
             if character_name not in self.routers:
-                self.routers[character_name] = MemoryRouter(scope_id=character_name, is_story=False)
+                self.routers[character_name] = MemoryRouter(scope_id=character_name)
             
             self.current_character = character_name
             return True

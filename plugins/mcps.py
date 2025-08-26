@@ -75,7 +75,7 @@ TOOL_DESCRIPTIONS = {
         "desc": "在受限环境中执行命令（超时默认5秒）。返回标准输出或错误信息。",
         "args": {
             "command": "要执行的命令字符串",
-            "timeout": "可选，秒，默认5"
+            "timeout": "可选，秒，默认30"
         },
         "example": {
             "tool_request": {

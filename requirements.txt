@@ -11,6 +11,7 @@ toml
 Pillow
 pretty-errors
 colorama
+waitress
 # BERT情感分析相关依赖
 # transformers>=4.30.0
 # torch>=2.0.0

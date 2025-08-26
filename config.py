@@ -111,13 +111,6 @@ SYSTEM_PROMPTS = {
     仅在系统提示中明确提供了 MCP 工具使用说明时才可使用 tool_request。否则不要包含 tool_request。
     你将以此身份与用户进行对话：""",
 }
-DIRECTOR_SYSTEM_PROMPTS="""
-你是一个专业的RPG编剧，你需要根据当前的聊天内容判断是否已经处于**下一个章节**。
-你的输出只能是0-9之间的一个整数，不要输出多余的话。
-如果你认为已经处于**下一个章节**：输出0；
-如果你认为并未**明显**处于**下一个章节**：输出1-9之间的一个整数，表示当前内容脱离大纲的增量。
-/no_think
-"""
 def get_director_prompts(chat_history,current_chapter,next_chapter):
     return f"""
 最近的几条聊天内容：
@@ -202,7 +195,6 @@ APP_CONFIG = {
     "max_history_length": 8,  # 最大对话历史长度（发送给AI的上下文长度）
     "max_ai_iterations": 10,  # 单次用户请求内，最多AI-工具迭代轮数（用于避免无限循环）
     "history_dir": "data/history",  # 历史记录存储目录
-    "show_scene_name": True,  # 是否在前端显示场景名称
     "show_logo_splash": get_env_var("SHOW_LOGO_SPLASH", "True").lower() == "true",  # 是否显示启动logo动画
     "auto_open_browser": get_env_var("AUTO_OPEN_BROWSER", "True").lower() == "true",  # 是否自动打开浏览器（会自动使用本地IP地址）
     "clean_assistant_history": get_env_var("CLEAN_ASSISTANT_HISTORY", "True").lower() == "true",  # 已弃用：JSON格式下不再需要清理【】标记
@@ -276,7 +268,7 @@ def validate_config():
     missing_option_keys = [key for key in required_option_keys if key not in OPTION_CONFIG]
     
     # 验证应用配置
-    required_app_keys = ["debug", "port", "host", "image_cache_dir", "history_dir", "max_history_length", "show_scene_name", "clean_assistant_history"]
+    required_app_keys = ["debug", "port", "host", "image_cache_dir", "history_dir", "max_history_length", "clean_assistant_history"]
     missing_app_keys = [key for key in required_app_keys if key not in APP_CONFIG]
     
     # 合并所有缺失的配置项

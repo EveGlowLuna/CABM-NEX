@@ -14,6 +14,7 @@ from .config_routes import bp as config_bp
 from .chat_routes import bp as chat_bp
 from .character_routes import bp as character_bp
 from .misc_routes import bp as misc_bp
+from .tcp_routes import tcp_bp
 
 def register_blueprints(app: Flask):
     """把全部蓝图注册到 Flask 实例"""
@@ -21,3 +22,4 @@ def register_blueprints(app: Flask):
     app.register_blueprint(chat_bp)
     app.register_blueprint(character_bp)
     app.register_blueprint(misc_bp)
+    app.register_blueprint(tcp_bp)

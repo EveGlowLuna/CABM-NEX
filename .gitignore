@@ -20,13 +20,14 @@ todo.txt
 backups/
 log.txt
 temp.txt
+tcp_config.json
 
 .history/
 static/images/default/
 #测试文件
 test.py
 temp/
-
+frpc/frpc.ini
 test/
 .kiro/
 .vscode/

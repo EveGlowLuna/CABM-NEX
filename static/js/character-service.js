@@ -53,7 +53,7 @@ export function getCurrentCharacter() {
     return currentCharacter;
 }
 
-// 直接设置当前角色（用于剧情模式）
+// 直接设置当前角色
 export function setCurrentCharacter(character) {
     currentCharacter = character;
     console.log('角色服务 - 设置当前角色:', currentCharacter);

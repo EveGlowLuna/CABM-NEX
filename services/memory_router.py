@@ -15,15 +15,14 @@ from utils.memory import (
 
 
 class MemoryRouter:
-    def __init__(self, scope_id: str, is_story: bool = False, root_dir: str = "data/memory"):
+    def __init__(self, scope_id: str, root_dir: str = "data/memory"):
         self.scope_id = scope_id
-        self.is_story = is_story
         self.root_dir = root_dir
         self.cfg = get_memory_config()
         self.buffer = ShortTermBufferStore(root_dir, scope_id)
         self.summaries = SummaryStore(root_dir, scope_id)
         self.profile = ProfileStore(root_dir, scope_id)
-        self.vector = VectorStoreAdapter(scope_id, is_story=is_story)
+        self.vector = VectorStoreAdapter(scope_id)
 
     def _assemble(self, parts: List[str], token_budget: int) -> str:
         if not parts:
