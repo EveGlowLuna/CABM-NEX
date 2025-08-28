@@ -20,6 +20,9 @@ import {
 } from './ui-service.js';
 import { getCurrentCharacter, handleMoodChange } from './character-service.js';
 
+// 存储MCP工具的详细结果
+window.mcpToolResults = window.mcpToolResults || {};
+
 // 流式处理器实例
 let streamProcessor = null;
 
@@ -182,7 +185,31 @@ export async function sendMessage() {
                                         window.__pendingDropPrefix = toAppend;
                                     }
                                 }
-                                addToHistory('system', data.system, '系统');
+                                
+                                // 检查是否为MCP工具消息
+                                const isMCPMessage = data.system.startsWith('[MCP] 工具完成：');
+                                if (isMCPMessage) {
+                                    // 为MCP消息生成唯一ID并存储
+                                    const messageId = 'mcp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                                    window.mcpToolResults[messageId] = {
+                                        summary: data.system,
+                                        timestamp: new Date().toISOString()
+                                    };
+                                    
+                                    // 添加带有ID的消息到历史记录
+                                    addToHistory('system', data.system, '系统');
+                                    
+                                    // 将消息ID与气泡关联
+                                    setTimeout(() => {
+                                        const bubbles = document.querySelectorAll('.chat-bubble.system');
+                                        const lastBubble = bubbles[bubbles.length - 1];
+                                        if (lastBubble && !lastBubble.dataset.messageId) {
+                                            lastBubble.dataset.messageId = messageId;
+                                        }
+                                    }, 0);
+                                } else {
+                                    addToHistory('system', data.system, '系统');
+                                }
                             }
                             if (data.mood !== undefined) handleMoodChange(data.mood);
                             if (data.content) streamProcessor.addData(data.content);
@@ -259,7 +286,31 @@ export async function sendMessage() {
                                     window.__pendingDropPrefix = toAppend;
                                 }
                             }
-                            addToHistory('system', data.system, '系统');
+                            
+                            // 检查是否为MCP工具消息
+                            const isMCPMessage = data.system.startsWith('[MCP] 工具完成：');
+                            if (isMCPMessage) {
+                                // 为MCP消息生成唯一ID并存储
+                                const messageId = 'mcp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                                window.mcpToolResults[messageId] = {
+                                    summary: data.system,
+                                    timestamp: new Date().toISOString()
+                                };
+                                
+                                // 添加带有ID的消息到历史记录
+                                addToHistory('system', data.system, '系统');
+                                
+                                // 将消息ID与气泡关联
+                                setTimeout(() => {
+                                    const bubbles = document.querySelectorAll('.chat-bubble.system');
+                                    const lastBubble = bubbles[bubbles.length - 1];
+                                    if (lastBubble && !lastBubble.dataset.messageId) {
+                                        lastBubble.dataset.messageId = messageId;
+                                    }
+                                }, 0);
+                            } else {
+                                addToHistory('system', data.system, '系统');
+                            }
                         }
                         if (data.options) {
                             window.pendingOptions = data.options;

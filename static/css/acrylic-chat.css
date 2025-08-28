@@ -97,6 +97,44 @@
   color: #eaf8ff;
 }
 
+/* MCP工具消息的特殊样式 */
+.chat-bubble.system .mcp-summary {
+  cursor: pointer;
+  position: relative;
+  padding-right: 20px;
+}
+
+.chat-bubble.system .mcp-toggle-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #eaf8ff;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  margin-top: 8px;
+  cursor: pointer;
+}
+
+.chat-bubble.system .mcp-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.chat-bubble.system .mcp-details {
+  margin-top: 10px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.chat-bubble.system .mcp-details .detail-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .chat-bubble.user {
   align-self: flex-end;
   border-color: rgba(255, 230, 120, 0.45);
@@ -117,7 +155,7 @@
   color: var(--ai-msg-color);
 }
 
-/* 内联选项按钮样式（渲染在“我”的气泡内部） */
+/* 内联选项按钮样式（渲染在"我"的气泡内部） */
 .inline-options {
   display: flex;
   flex-wrap: wrap;

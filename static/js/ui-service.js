@@ -181,12 +181,57 @@ export function addToHistory(role, content, customName = null) {
         name.textContent = '系统';
     }
 
-    const contentDiv = document.createElement('div');
-    contentDiv.className = 'content';
-    contentDiv.textContent = content;
+    // 检查是否为MCP工具消息
+    const isMCPMessage = content.startsWith('[MCP] 工具完成：');
+    
+    if (isMCPMessage) {
+        // 创建可折叠的MCP工具消息
+        const summaryDiv = document.createElement('div');
+        summaryDiv.className = 'content mcp-summary';
+        summaryDiv.textContent = content;
+        
+        const detailsDiv = document.createElement('div');
+        detailsDiv.className = 'mcp-details';
+        detailsDiv.style.display = 'none';
+        
+        const toggleButton = document.createElement('button');
+        toggleButton.className = 'mcp-toggle-btn';
+        toggleButton.textContent = '展开详情';
+        toggleButton.onclick = function() {
+            if (detailsDiv.style.display === 'none') {
+                // 显示详细信息
+                if (!detailsDiv.querySelector('.detail-content')) {
+                    const messageId = bubble.dataset.messageId;
+                    const toolResult = window.mcpToolResults[messageId];
+                    if (toolResult) {
+                        const detailContent = document.createElement('div');
+                        detailContent.className = 'detail-content';
+                        detailContent.textContent = toolResult.summary; // 使用summary作为默认详细内容
+                        detailsDiv.appendChild(detailContent);
+                    }
+                }
+                detailsDiv.style.display = 'block';
+                toggleButton.textContent = '收起详情';
+            } else {
+                detailsDiv.style.display = 'none';
+                toggleButton.textContent = '展开详情';
+            }
+        };
+        
+        bubble.appendChild(name);
+        bubble.appendChild(summaryDiv);
+        bubble.appendChild(toggleButton);
+        bubble.appendChild(detailsDiv);
+    } else {
+        // 普通消息
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'content';
+        contentDiv.textContent = content;
+        
+        bubble.appendChild(name);
+        bubble.appendChild(contentDiv);
+    }
 
-    bubble.appendChild(name);
-    bubble.appendChild(contentDiv);
     chatLog.appendChild(bubble);
     chatLog.scrollTop = chatLog.scrollHeight;
 }
