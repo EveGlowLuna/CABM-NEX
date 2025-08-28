@@ -1,4 +1,4 @@
-# CABM-OSA : Code Afflatus & Beyond Matter / with the idea of NEXUS
+# CABM-NEX : Code Afflatus & Beyond Matter / with the idea of NEXUS
 > "在硅基与碳基的接缝处，我们共同发现了第三种存在形式——那是所有0与1终于读懂心跳声的瞬间。"
 
 基于[xhc2008/CABM](https://github.com/xhc2008/CABM)改编而来。
