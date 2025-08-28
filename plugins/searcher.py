@@ -287,6 +287,36 @@ def _search_baidu(query: str, count: int = 3) -> List[Dict]:
     return results
 
 
+def _deduplicate_results(all_results: List[Dict]) -> List[Dict]:
+    """
+    基于URL去重搜索结果
+    """
+    unique_results = []
+    seen_urls = set()
+    for result in all_results:
+        url = result.get('url', '')
+        if url and url not in seen_urls:
+            unique_results.append(result)
+            seen_urls.add(url)
+    return unique_results
+
+def _fetch_and_process_webpage(link: str, headers: dict, max_length: int) -> str:
+    """
+    抓取并处理网页内容
+    """
+    try:
+        page = requests.get(link, headers=headers, timeout=10)
+        page.raise_for_status()
+        # 检查内容类型，只处理HTML和文本内容
+        content_type = page.headers.get('content-type', '').lower()
+        if 'html' not in content_type and 'text' not in content_type:
+            return ""
+            
+        psoup = BeautifulSoup(page.text, "html.parser")
+        return _extract_main_content(psoup)[:max_length]
+    except Exception as e:
+        return f"(抓取失败: {e})"
+
 def search_and_fetch(query: str, count: int = 3, max_length: int = 1000):
     """
     在多个搜索引擎搜索 -> 抓取网页 -> 提取关键信息
@@ -319,13 +349,7 @@ def search_and_fetch(query: str, count: int = 3, max_length: int = 1000):
             continue
 
     # 去重：基于URL
-    unique_results = []
-    seen_urls = set()
-    for result in all_results:
-        url = result.get('url', '')
-        if url and url not in seen_urls:
-            unique_results.append(result)
-            seen_urls.add(url)
+    unique_results = _deduplicate_results(all_results)
     
     # 限制结果数量
     unique_results = unique_results[:count]
@@ -338,19 +362,7 @@ def search_and_fetch(query: str, count: int = 3, max_length: int = 1000):
         engine = item.get("engine", "")
 
         # 抓取网页正文（容错）
-        content = ""
-        try:
-            page = requests.get(link, headers=headers, timeout=10)
-            page.raise_for_status()
-            # 检查内容类型，只处理HTML和文本内容
-            content_type = page.headers.get('content-type', '').lower()
-            if 'html' not in content_type and 'text' not in content_type:
-                continue
-                
-            psoup = BeautifulSoup(page.text, "html.parser")
-            content = _extract_main_content(psoup)[:max_length]
-        except Exception as e:
-            content = f"(抓取失败: {e})"
+        content = _fetch_and_process_webpage(link, headers, max_length)
 
         # 生成更好的摘要
         summary = _generate_better_summary(content) or snippet

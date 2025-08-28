@@ -3,8 +3,20 @@ from typing import List, Literal
 try:
     import torch
     from transformers import AutoTokenizer, AutoModelForSequenceClassification
+    
     class Reranker_Model:
-        def __init__(self, rerank_model_name_or_path, device: Literal['cuda', 'cpu'] = None):
+        """
+        用于对文档进行重新排序的模型类
+        """
+        
+        def __init__(self, rerank_model_name_or_path: str, device: Literal['cuda', 'cpu'] = None):
+            """
+            初始化Reranker模型
+            
+            Args:
+                rerank_model_name_or_path: 重排模型的名称或路径
+                device: 设备类型 ('cuda' 或 'cpu')
+            """
             if device is None:
                 device = 'cuda' if torch.cuda.is_available() else 'cpu'
             device = torch.device(device)
@@ -15,7 +27,18 @@ try:
             self.device = device
             print('successful load rerank model')
 
-        def rerank(self, docs, query, k=5):
+        def rerank(self, docs: List, query: str, k: int = 5) -> List:
+            """
+            对文档进行重新排序
+            
+            Args:
+                docs: 文档列表
+                query: 查询语句
+                k: 返回的文档数量
+                
+            Returns:
+                重新排序后的文档列表
+            """
             docs_ = []
             for item in docs:
                 if isinstance(item, str):

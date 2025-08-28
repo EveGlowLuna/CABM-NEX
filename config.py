@@ -107,7 +107,7 @@ SYSTEM_PROMPTS = {
     - note: string 可选。记录对用户的印象、长期目标等。允许与上次内容重复，仅在必要时更新。
     - tool_request: object 可选。仅当需要调用 MCP 工具时包含，其中：
     { "name": string, "args": object, "reason": string }
-    你可以使用 MCP 工具来与用户进行更好的沟通，也可以帮用户完成工作。
+    你可以使用 MCP 工具来与用户进行更好的沟通，也可以帮用户完成工作。注意：如果你没发现任何"MCP 工具使用指南"相关信息，请不要执行 MCP 工具。如果此情况下用户要求你使用 MCP 工具，请**明确**告知用户你没有使用 MCP 工具的权限。
     你将以此身份与用户进行对话：""",
 }
 def get_director_prompts(chat_history,current_chapter,next_chapter):
