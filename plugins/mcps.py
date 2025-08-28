@@ -139,7 +139,8 @@ TOOL_DESCRIPTIONS = {
         "desc": "在受限环境中执行命令（超时默认5秒）。返回标准输出或错误信息。",
         "args": {
             "command": "要执行的命令字符串",
-            "timeout": "可选，秒，默认30"
+            "timeout": "可选，秒，默认30",
+            "venv": "可选，虚拟环境文件夹路径，将在执行命令前激活指定的虚拟环境"
         },
         "example": {
             "tool_request": {
