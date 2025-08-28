@@ -72,40 +72,60 @@ def _get_last_assistant_sentence_for_character(character_id: str) -> str:
 # ------------------------------------------------------------------
 # MCP 工具函数
 # ------------------------------------------------------------------
+def _is_in_string(text: str, position: int, in_string: bool, escape: bool) -> tuple:
+    """
+    检查指定位置是否在字符串内
+    """
+    ch = text[position]
+    if in_string:
+        if escape:
+            return in_string, False
+        elif ch == '\\':
+            return in_string, True
+        elif ch == '"':
+            return False, False
+    else:
+        if ch == '"':
+            return True, False
+    return in_string, escape
+
+def _update_brace_count(text: str, position: int, in_string: bool, brace_count: int, current_start: int) -> tuple:
+    """
+    更新大括号计数
+    """
+    if in_string:
+        return brace_count, current_start
+    
+    ch = text[position]
+    if ch == '{':
+        if brace_count == 0:
+            current_start = position
+        return brace_count + 1, current_start
+    elif ch == '}':
+        if brace_count > 0:
+            return brace_count - 1, current_start
+    return brace_count, current_start
+
 def _extract_last_complete_json(text: str) -> Optional[str]:
     """
     从给定文本中提取最后一个完整且平衡的 JSON 对象（忽略字符串内的大括号）
     """
     if not text:
         return None
+    
     in_string = False
     escape = False
     brace_count = 0
     last_complete_end = -1
     current_start = -1
+    
     for i, ch in enumerate(text):
-        if in_string:
-            if escape:
-                escape = False
-            elif ch == '\\':
-                escape = True
-            elif ch == '"':
-                in_string = False
-            continue
-        else:
-            if ch == '"':
-                in_string = True
-                continue
-            if ch == '{':
-                if brace_count == 0:
-                    current_start = i
-                brace_count += 1
-            elif ch == '}':
-                if brace_count > 0:
-                    brace_count -= 1
-                    if brace_count == 0 and current_start != -1:
-                        last_complete_end = i + 1
-        # 其他字符不影响 brace 计数
+        in_string, escape = _is_in_string(text, i, in_string, escape)
+        if not in_string:
+            brace_count, current_start = _update_brace_count(text, i, in_string, brace_count, current_start)
+            if brace_count == 0 and current_start != -1 and text[i] == '}':
+                last_complete_end = i + 1
+
     if last_complete_end != -1 and current_start != -1:
         try:
             candidate = text[current_start:last_complete_end]
@@ -129,10 +149,24 @@ def _is_sentence_end(s: str) -> bool:
     ends = ('。', '！', '？', '!', '?', '.', '…')
     return t.endswith(ends)
 
-def _process_tool_request(tr, max_ai_iterations, iteration_count, seen_tool_sigs, message, per_request_system_msgs, tool_request_history, has_tool_context):
+def _process_tool_request(tool_request_data):
     """
     处理工具请求
+    
+    Args:
+        tool_request_data (dict): 包含处理工具请求所需的所有数据
+            - tr: 工具请求数据
+            - max_ai_iterations: 最大AI迭代次数
+            - iteration_count: 当前迭代次数
+            - seen_tool_sigs: 已见过的工具签名集合
+            - message: 用户消息
     """
+    tr = tool_request_data.get('tr')
+    max_ai_iterations = tool_request_data.get('max_ai_iterations')
+    iteration_count = tool_request_data.get('iteration_count')
+    seen_tool_sigs = tool_request_data.get('seen_tool_sigs')
+    message = tool_request_data.get('message')
+    
     tool_name = tr.get('name')
     tool_args = tr.get('args') or {}
     reason = tr.get('reason') or ''
@@ -140,13 +174,6 @@ def _process_tool_request(tr, max_ai_iterations, iteration_count, seen_tool_sigs
     if not tool_name:
         return None
         
-    # 一旦检测到工具请求：记录本次 assistant 的 tool_request JSON，并进入工具上下文
-    try:
-        # (空操作，只是记录工具请求历史在主函数中进行)
-        pass
-    except Exception:
-        pass
-    has_tool_context = True
     # 轮次计数与检查
     iteration_count += 1
     if iteration_count > max_ai_iterations:
@@ -179,20 +206,18 @@ def _get_max_ai_iterations():
     except Exception:
         return 10
 
-def _inject_mcp_prompt_to_messages(base_messages, mcp_mod):
+def _generate_mcp_tool_prompt(mcp_mod):
     """
-    注入MCP工具使用说明到消息列表中
+    生成MCP工具提示文本
     
     Args:
-        base_messages: 基础消息列表
-        mcp_mod: MCP模块实例，如果为None则不注入
+        mcp_mod: MCP模块实例
         
     Returns:
-        注入工具说明后的消息列表
+        str: 生成的工具提示文本
     """
-    # 如果没有启用MCP或没有MCP模块，则直接返回原始消息列表
     if not mcp_mod:
-        return base_messages
+        return None
         
     try:
         # 获取工具描述
@@ -212,7 +237,30 @@ def _inject_mcp_prompt_to_messages(base_messages, mcp_mod):
         for name, meta in tools_desc.items():
             args_desc = ", ".join(f"{k}:{v}" for k, v in (meta.get("args", {}) or {}).items())
             lines.append(f"- {name}: {meta.get('desc','')} 参数: {args_desc}")
-        mcp_tool_prompt = "\n".join(lines)
+        return "\n".join(lines)
+    except Exception:
+        return None
+
+def _inject_mcp_prompt_to_messages(base_messages, mcp_mod):
+    """
+    注入MCP工具使用说明到消息列表中
+    
+    Args:
+        base_messages: 基础消息列表
+        mcp_mod: MCP模块实例，如果为None则不注入
+        
+    Returns:
+        注入工具说明后的消息列表
+    """
+    # 如果没有启用MCP或没有MCP模块，则直接返回原始消息列表
+    if not mcp_mod:
+        return base_messages
+        
+    try:
+        mcp_tool_prompt = _generate_mcp_tool_prompt(mcp_mod)
+        if not mcp_tool_prompt:
+            return base_messages
+            
         inserted = False
         for idx, msg in enumerate(base_messages):
             if msg.get("role") == "system":
@@ -234,8 +282,10 @@ def home():
         return render_template('config.html')
     return render_template('index.html')
 
-@bp.route('/chat')
-def chat_page():
+def _set_character_if_needed():
+    """
+    如果需要，设置当前角色
+    """
     try:
         current_character = chat_service.get_character_config()
         if current_character and "id" in current_character:
@@ -244,6 +294,13 @@ def chat_page():
         print(f"进入聊天页切换角色失败: {e}")
         traceback.print_exc()
 
+def _get_background_image():
+    """
+    获取背景图片
+    
+    Returns:
+        str: 背景图片路径
+    """
     background = image_service.get_current_background()
     if not background:
         try:
@@ -252,17 +309,38 @@ def chat_page():
                 background = result["image_path"]
         except Exception as e:
             print(f"背景图片生成失败: {e}")
+    return background
 
+def _get_background_url(background):
+    """
+    获取背景图片URL
+    
+    Args:
+        background (str): 背景图片路径
+        
+    Returns:
+        str: 背景图片URL
+    """
     background_url = None
     if background:
         background_url = f"/static/images/cache/{os.path.basename(background)}"
+    return background_url
 
+def _check_character_image():
+    """
+    检查默认角色图片是否存在
+    """
     character_image_path = os.path.join(bp.static_folder or str(project_root / 'static'), 'images', 'default', '1.png')
     if not os.path.exists(character_image_path):
         print(f"警告: 默认角色图片不存在: {character_image_path}")
 
-    app_config = config_service.get_app_config()
-
+def _get_last_sentence():
+    """
+    获取最后一个句子
+    
+    Returns:
+        str: 最后一个句子
+    """
     last_sentence = ""
     try:
         current_character = chat_service.get_character_config()
@@ -270,7 +348,15 @@ def chat_page():
             last_sentence = _get_last_assistant_sentence_for_character(current_character["id"]) or ""
     except Exception:
         pass
+    return last_sentence
 
+def _get_plugin_inject_scripts():
+    """
+    获取插件注入脚本
+    
+    Returns:
+        list: 插件注入脚本列表
+    """
     from utils.plugin import FRONTEND_HOOKS
     plugin_inject_scripts = []
     def collect_inject(route, path):
@@ -278,6 +364,18 @@ def chat_page():
             plugin_inject_scripts.append(route)
     for hook in FRONTEND_HOOKS:
         hook(collect_inject)
+    return plugin_inject_scripts
+
+@bp.route('/chat')
+def chat_page():
+    _set_character_if_needed()
+    
+    background = _get_background_image()
+    background_url = _get_background_url(background)
+    _check_character_image()
+    
+    last_sentence = _get_last_sentence()
+    plugin_inject_scripts = _get_plugin_inject_scripts()
 
     return render_template(
         'chat.html',
@@ -313,6 +411,58 @@ def chat():
         return jsonify({'success': False, 'error': e.message}), 500
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+def _initialize_chat_stream_variables(mcp_enabled, mcp_mod):
+    """
+    初始化聊天流变量
+    
+    Args:
+        mcp_enabled (bool): 是否启用MCP
+        mcp_mod: MCP模块
+        
+    Returns:
+        dict: 初始化的变量字典
+    """
+    # 轮次限制与去重：避免工具反复调用导致死循环
+    try:
+        app_cfg = config_service.get_app_config()
+        max_ai_iterations = int(app_cfg.get('max_ai_iterations', 10))
+    except Exception:
+        max_ai_iterations = 10
+    
+    # 冻结本次请求的提示词：构造一次 base_messages，不在迭代中改动
+    base_messages = chat_service.format_messages()
+    # 如启用MCP，仅注入一次工具使用说明
+    base_messages = _inject_mcp_prompt_to_messages(base_messages, mcp_mod if mcp_enabled else None)
+    
+    return {
+        'max_ai_iterations': max_ai_iterations,
+        'iteration_count': 0,
+        'seen_tool_sigs': set(),
+        'stop_outer_loop': False,
+        'base_messages': base_messages,
+        'per_request_system_msgs': [],
+        'system_only_messages': [m for m in base_messages if m.get("role") == "system"],
+        'tool_request_history': [],  # List[Dict(role=assistant, content=json_str)]
+        'has_tool_context': False
+    }
+
+def _construct_current_messages(has_tool_context, base_messages, system_only_messages, 
+                               per_request_system_msgs, tool_request_history):
+    """
+    构造当前轮次的消息
+    
+    Returns:
+        list: 当前轮次的消息列表
+    """
+    if not has_tool_context:
+        return list(base_messages) + per_request_system_msgs
+    else:
+        current_messages = list(system_only_messages)
+        if tool_request_history:
+            current_messages.extend(tool_request_history)
+        current_messages.extend(per_request_system_msgs)
+        return current_messages
 
 @bp.route('/api/chat/stream', methods=['POST'])
 def chat_stream():
@@ -411,8 +561,27 @@ def chat_stream():
                     ends = ('。', '！', '？', '!', '?', '.', '…')
                     return t.endswith(ends)
 
-                def _handle_tool_call(self, tool_name: str, tool_args: dict, reason: str, mcp_mod, message, per_request_system_msgs, tool_request_history, yield_func, chat_service_add_message_func) -> dict:
-                    """处理工具调用，执行工具并返回结果"""
+                def _handle_tool_call(tool_call_data):
+                    """
+                    处理工具调用，执行工具并返回结果
+                    
+                    Args:
+                        tool_call_data (dict): 包含工具调用所需的所有数据
+                            - tool_name: 工具名称
+                            - tool_args: 工具参数
+                            - reason: 调用原因
+                            - mcp_mod: MCP模块
+                            - message: 用户消息
+                            
+                    Returns:
+                        dict: 处理结果
+                    """
+                    tool_name = tool_call_data.get('tool_name')
+                    tool_args = tool_call_data.get('tool_args')
+                    reason = tool_call_data.get('reason')
+                    mcp_mod = tool_call_data.get('mcp_mod')
+                    message = tool_call_data.get('message')
+                    
                     try:
                         # 实际调用工具
                         result = mcp_mod.call_tool(tool_name, tool_args)
@@ -472,38 +641,25 @@ def chat_stream():
                             messages.extend(tool_request_history)
                         messages.extend(per_request_system_msgs)
                         return messages
-                # 轮次限制与去重：避免工具反复调用导致死循环
-                try:
-                    app_cfg = config_service.get_app_config()
-                    max_ai_iterations = int(app_cfg.get('max_ai_iterations', 10))
-                except Exception:
-                    max_ai_iterations = 10
-                iteration_count = 0
-                seen_tool_sigs = set()
-                stop_outer_loop = False
-                # 冻结本次请求的提示词：构造一次 base_messages，不在迭代中改动
-                base_messages = chat_service.format_messages()
-                # 如启用MCP，仅注入一次工具使用说明
-                base_messages = _inject_mcp_prompt_to_messages(base_messages, mcp_mod if mcp_enabled else None)
-                # 累积在本请求过程中的系统消息（工具结果、说明等），每轮与构造的最小上下文合并
-                per_request_system_msgs = []
-                # 仅保留系统类提示（角色设定 + MCP 工具说明），用于工具交互后的最小消息集
-                system_only_messages = [m for m in base_messages if m.get("role") == "system"]
-                # 累积历史的 tool_request（assistant 的 JSON 原文），支持多轮工具调用记忆
-                tool_request_history = []  # List[Dict(role=assistant, content=json_str)]
-                # 标记：是否进入工具上下文（一旦检测到/执行过工具后为 True），进入后不再携带原始 user
-                has_tool_context = False
+                        
+                # 初始化变量
+                vars = _initialize_chat_stream_variables(mcp_enabled, mcp_mod)
+                max_ai_iterations = vars['max_ai_iterations']
+                iteration_count = vars['iteration_count']
+                seen_tool_sigs = vars['seen_tool_sigs']
+                stop_outer_loop = vars['stop_outer_loop']
+                base_messages = vars['base_messages']
+                per_request_system_msgs = vars['per_request_system_msgs']
+                system_only_messages = vars['system_only_messages']
+                tool_request_history = vars['tool_request_history']
+                has_tool_context = vars['has_tool_context']
+                
                 while True:
                     # 本轮消息构造：
-                    # - 未进入工具上下文：使用冻结的 base_messages（包含原始 user）+ 本轮累计的系统消息
-                    # - 已进入工具上下文：严格遵循最小集，只包含 系统提示 + MCP 说明 + 所有历史 tool_request(JSON, role=assistant) + 工具结果系统消息
-                    if not has_tool_context:
-                        current_messages = list(base_messages) + per_request_system_msgs
-                    else:
-                        current_messages = list(system_only_messages)
-                        if tool_request_history:
-                            current_messages.extend(tool_request_history)
-                        current_messages.extend(per_request_system_msgs)
+                    current_messages = _construct_current_messages(
+                        has_tool_context, base_messages, system_only_messages,
+                        per_request_system_msgs, tool_request_history)
+                        
                     stream_gen = chat_service.chat_completion(
                         messages=current_messages,
                         stream=True,
@@ -574,37 +730,64 @@ def chat_stream():
                                             
                                             # 实际调用工具
                                             try:
-                                                # 实际调用工具
-                                                result = mcp_mod.call_tool(tool_name, tool_args)
-                                                # 构造简洁的前端提示（不含详情）
-                                                system_msg_front = f"[MCP] 工具完成：{tool_name}（成功）"
-                                                yield f"data: {json.dumps({'system': system_msg_front})}\n\n"
-                                                # 详细结果仅放入模型上下文
-                                                try:
-                                                    result_str = json.dumps(result, ensure_ascii=False)
-                                                except Exception:
-                                                    result_str = str(result)
-                                                if len(result_str) > 800:
-                                                    result_str = result_str[:800] + '...'
-                                                system_msg_detail = f"[MCP] 工具完成：{tool_name}，结果：{result_str}"
-                                                try:
-                                                    chat_service.add_message("system", system_msg_detail)
-                                                except Exception:
-                                                    pass
-                                                per_request_system_msgs.append({"role": "system", "content": system_msg_detail})
-                                                # 说明性提示仅供模型参考，不推送到前端
-                                                bracket_note = f"[说明] 结构：AI:[{{content: 已处理, tool: {tool_name}, status: ok}}]。方括号内是你基于内容的回应，现在等待你的下一步操作。"
-                                                try:
-                                                    chat_service.add_message("system", bracket_note)
-                                                except Exception:
-                                                    pass
-                                                per_request_system_msgs.append({"role": "system", "content": bracket_note})
-                                                # 重申用户原始需求，确保基于工具结果继续
-                                                if message:
-                                                    per_request_system_msgs.append({
-                                                        "role": "system",
-                                                        "content": f"[用户原始需求(注意：你需要基于工具结果继续回答)] {message}"
-                                                    })
+                                                tool_call_data = {
+                                                    'tool_name': tool_name,
+                                                    'tool_args': tool_args,
+                                                    'reason': reason,
+                                                    'mcp_mod': mcp_mod,
+                                                    'message': message
+                                                }
+                                                tool_result = _handle_tool_call(tool_call_data)
+                                                
+                                                if tool_result['status'] == 'success':
+                                                    system_msg_front = tool_result['system_msg_front']
+                                                    yield f"data: {json.dumps({'system': system_msg_front})}\n\n"
+                                                    
+                                                    system_msg_detail = tool_result['system_msg_detail']
+                                                    try:
+                                                        chat_service.add_message("system", system_msg_detail)
+                                                    except Exception:
+                                                        pass
+                                                    per_request_system_msgs.append({"role": "system", "content": system_msg_detail})
+                                                    
+                                                    bracket_note = tool_result['bracket_note']
+                                                    try:
+                                                        chat_service.add_message("system", bracket_note)
+                                                    except Exception:
+                                                        pass
+                                                    per_request_system_msgs.append({"role": "system", "content": bracket_note})
+                                                    
+                                                    user_note = tool_result['user_note']
+                                                    if user_note:
+                                                        per_request_system_msgs.append({
+                                                            "role": "system",
+                                                            "content": user_note
+                                                        })
+                                                else:  # tool_result['status'] == 'error'
+                                                    err_front = tool_result['err_front']
+                                                    yield f"data: {json.dumps({'system': err_front})}\n\n"
+                                                    
+                                                    err_msg = tool_result['err_msg']
+                                                    try:
+                                                        chat_service.add_message("system", err_msg)
+                                                    except Exception:
+                                                        pass
+                                                    per_request_system_msgs.append({"role": "system", "content": err_msg})
+                                                    
+                                                    bracket_note = tool_result['bracket_note']
+                                                    try:
+                                                        chat_service.add_message("system", bracket_note)
+                                                    except Exception:
+                                                        pass
+                                                    per_request_system_msgs.append({"role": "system", "content": bracket_note})
+                                                    
+                                                    user_note = tool_result['user_note']
+                                                    if user_note:
+                                                        per_request_system_msgs.append({
+                                                            "role": "system",
+                                                            "content": user_note
+                                                        })
+                                                
                                                 try:
                                                     print(f"[MCP][DEBUG] Tool executed: {tool_name}")
                                                 except Exception:
@@ -643,10 +826,14 @@ def chat_stream():
                                     # 处理工具请求：暂停输出，调用工具，写入history，并开始下一轮
                                     if mcp_enabled and mcp_mod and isinstance(json_data, dict) and 'tool_request' in json_data:
                                         tr = json_data.get('tool_request') or {}
-                                        tool_process_result = _process_tool_request(
-                                            tr, max_ai_iterations, iteration_count, seen_tool_sigs,
-                                            message, per_request_system_msgs, tool_request_history, has_tool_context
-                                        )
+                                        tool_request_data = {
+                                            'tr': tr,
+                                            'max_ai_iterations': max_ai_iterations,
+                                            'iteration_count': iteration_count,
+                                            'seen_tool_sigs': seen_tool_sigs,
+                                            'message': message
+                                        }
+                                        tool_process_result = _process_tool_request(tool_request_data)
                                         if tr.get('name'):
                                             saw_tool_request = True
                                             # 一旦检测到工具请求：记录本次 assistant 的 tool_request JSON，并进入工具上下文
