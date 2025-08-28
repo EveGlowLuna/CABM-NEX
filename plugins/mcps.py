@@ -8,6 +8,10 @@ TOOLS = {
     "read_file": file.read_file,
     "update_file": file.update_file,
     "create_file": file.create_file,
+    "append_file": file.append_file,
+    "insert_content": file.insert_content,
+    "search_replace": file.search_replace,
+    "delete_lines": file.delete_lines,
     "search_and_fetch": searcher.search_and_fetch,
     "run_shell": shell.run_shell
 }
@@ -56,12 +60,72 @@ TOOL_DESCRIPTIONS = {
             }
         }
     },
+    "append_file": {
+        "desc": "在文件末尾追加内容。返回操作结果字符串。",
+        "args": {
+            "file_path": "字符串，文件路径",
+            "content": "要追加的文本内容"
+        },
+        "example": {
+            "tool_request": {
+                "name": "append_file",
+                "args": {"file_path": "path/to/file.py", "content": "\nprint('hello')"},
+                "reason": "需要在文件末尾添加代码"
+            }
+        }
+    },
+    "insert_content": {
+        "desc": "在指定行插入内容。返回操作结果字符串。",
+        "args": {
+            "file_path": "字符串，文件路径",
+            "line": "整数，插入行号（1-based）",
+            "content": "要插入的文本内容"
+        },
+        "example": {
+            "tool_request": {
+                "name": "insert_content",
+                "args": {"file_path": "path/to/file.py", "line": 5, "content": "# 新注释"},
+                "reason": "需要在第5行插入注释"
+            }
+        }
+    },
+    "search_replace": {
+        "desc": "搜索并替换文件内容，支持正则表达式。返回操作结果字符串。",
+        "args": {
+            "file_path": "字符串，文件路径",
+            "old_content": "要替换的旧内容",
+            "new_content": "新内容",
+            "use_regex": "可选，布尔值，是否使用正则表达式，默认false"
+        },
+        "example": {
+            "tool_request": {
+                "name": "search_replace",
+                "args": {"file_path": "path/to/file.py", "old_content": "old_var", "new_content": "new_var"},
+                "reason": "需要替换变量名"
+            }
+        }
+    },
+    "delete_lines": {
+        "desc": "删除指定行范围的内容。返回操作结果字符串。",
+        "args": {
+            "file_path": "字符串，文件路径",
+            "start_line": "整数，起始行号（1-based）",
+            "end_line": "整数，结束行号（1-based）"
+        },
+        "example": {
+            "tool_request": {
+                "name": "delete_lines",
+                "args": {"file_path": "path/to/file.py", "start_line": 10, "end_line": 15},
+                "reason": "需要删除第10-15行的内容"
+            }
+        }
+    },
     "search_and_fetch": {
-        "desc": "使用Bing搜索并抓取页面摘要。返回列表[{title,url,snippet,summary}]。",
+        "desc": "使用多个搜索引擎（Bing、百度、Google）搜索并抓取页面摘要。返回列表[{title,url,snippet,summary,engine}]。",
         "args": {
             "query": "搜索关键词",
             "count": "可选，结果数量，默认3",
-            "max_length": "可选，摘要最大长度，默认500"
+            "max_length": "可选，摘要最大长度，默认1000"
         },
         "example": {
             "tool_request": {

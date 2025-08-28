@@ -1,6 +1,7 @@
 import subprocess
 import os
 import sys
+import platform
 from typing import Optional, Tuple
 import logging
 
@@ -180,6 +181,7 @@ def run_shell(command: str, timeout: int = 30) -> str:
     Returns:
         命令执行结果
     """
+    os_name = platform.system()
     try:
         logger.info(f"执行命令: {command}")
 
@@ -216,18 +218,19 @@ def run_shell(command: str, timeout: int = 30) -> str:
         logger.info(f"命令执行完成，返回码: {result.returncode}")
 
         if result.returncode == 0:
-            return output if output else "(命令执行成功，但没有输出)"
+            response = output if output else "(命令执行成功，但没有输出)"
+            return f"[OS: {os_name}] {response}"
         else:
             error_msg = f"(执行失败，返回码 {result.returncode})"
             if error:
                 error_msg += f"\n错误信息: {error}"
             if output:
                 error_msg += f"\n输出信息: {output}"
-            return error_msg
+            return f"[OS: {os_name}] {error_msg}"
 
     except subprocess.TimeoutExpired:
         logger.error(f"命令超时: {command}")
-        return f"(命令超时：超过 {timeout} 秒未完成)"
+        return f"[OS: {os_name}] (命令超时：超过 {timeout} 秒未完成)"
     except Exception as e:
         logger.error(f"命令执行出错: {command}, 错误: {str(e)}")
-        return f"(执行出错: {e})"
+        return f"[OS: {os_name}] (执行出错: {e})"
