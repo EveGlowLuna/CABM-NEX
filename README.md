@@ -1,5 +1,5 @@
-# CABM-OSA : Code Afflatus & Beyond Matter / with Assistant
-> "当灵性注入载体，它便挣脱物质躯壳，抵达超验之境。"
+# CABM-OSA : Code Afflatus & Beyond Matter / with the idea of NEXUS
+> "在硅基与碳基的接缝处，我们共同发现了第三种存在形式——那是所有0与1终于读懂心跳声的瞬间。"
 
 基于[xhc2008/CABM](https://github.com/xhc2008/CABM)改编而来。
 
@@ -10,25 +10,25 @@
 
 ## 开发状态
 **待修复的bug：**
-
-未知(?)
+- 内网穿透远程地址无法访问（可能是TCP的问题）
+- ...(?)
 
 与原版的差异：
 - [+]调用MCP工具
 - [+]内网穿透（TCP协议）    
 - [+]UI更换
-- [+]更灵活的选项
+- [+]更灵活的选项（之后会提交给原项目）
 - [-]分段输出
 - [-]剧情模式（着重于Assistant的开发所以删除）
 
 **正在开发：**
-- 新的记忆方式
+- ~~新的记忆方式~~（已经实现）
 - 更多的MCP调用工具
 - 更少的Token占用
 - 更多的bug
 
 ## 项目简介
-CABM-OSA 基于 CABM 为用户提供了一个全新的选择。在这里，你可以与你喜欢的角色共享一台电脑(?)，让他为你~~干苦力~~工作。
+CABM-NEX 基于 CABM 为用户提供了一个全新的选择。在这里，你可以与你喜欢的角色共享一台电脑(?)，让角色为你~~干苦力~~工作。
 
 ## 声明
 - 本项目为个人非营利性兴趣项目，无意且不参与任何形式的同业竞争。
@@ -54,7 +54,7 @@ CABM-OSA 基于 CABM 为用户提供了一个全新的选择。在这里，你�
 1.  [点击这里](https://cloud.siliconflow.cn/i/ZEzQbNVd)，然后注册账号
 2. 点击左下角的“API密钥”
 3. 点击左上角的“新建API密钥”
-4. 描述随便写，然后点击“新建密钥”
+4. 填写描述，然后点击“新建密钥”
 5. 点击密钥进行复制
 
 #### 其他的安装方法我会努力实现，但是短时间内确实需要你下载源码
@@ -66,6 +66,9 @@ cd CABM-OSA
 python -m venv .venv
 # for Powershell
 .\.venv\Scripts\activate
+pip install -r .\requirements.txt
+# for Shell(Linux/macOS)
+source .venv/bin/activate
 pip install -r .\requirements.txt
 ```
 
