@@ -241,23 +241,40 @@ def _generate_mcp_tool_prompt(mcp_mod):
     except Exception:
         return None
 
-def _inject_mcp_prompt_to_messages(base_messages, mcp_mod):
+def _generate_mcp_disabled_prompt():
+    """
+    生成MCP禁用提示文本
+    
+    Returns:
+        str: 生成的MCP禁用提示文本
+    """
+    lines = [
+        "[MCP 工具状态通知]",
+        "当前用户已关闭MCP工具功能。即使你在输出中包含tool_request字段，系统也不会执行任何工具调用。",
+        "请勿尝试使用任何MCP工具，只需正常与用户对话即可。"
+    ]
+    return "\n".join(lines)
+
+def _inject_mcp_prompt_to_messages(base_messages, mcp_mod, mcp_enabled):
     """
     注入MCP工具使用说明到消息列表中
     
     Args:
         base_messages: 基础消息列表
-        mcp_mod: MCP模块实例，如果为None则不注入
+        mcp_mod: MCP模块实例
+        mcp_enabled: MCP是否启用
         
     Returns:
-        注入工具说明后的消息列表
+        注入提示后的消息列表
     """
-    # 如果没有启用MCP或没有MCP模块，则直接返回原始消息列表
-    if not mcp_mod:
-        return base_messages
-        
     try:
-        mcp_tool_prompt = _generate_mcp_tool_prompt(mcp_mod)
+        mcp_tool_prompt = None
+        # 根据MCP是否启用选择不同的提示文本
+        if mcp_enabled and mcp_mod:
+            mcp_tool_prompt = _generate_mcp_tool_prompt(mcp_mod)
+        elif not mcp_enabled:
+            mcp_tool_prompt = _generate_mcp_disabled_prompt()
+            
         if not mcp_tool_prompt:
             return base_messages
             
@@ -432,8 +449,8 @@ def _initialize_chat_stream_variables(mcp_enabled, mcp_mod):
     
     # 冻结本次请求的提示词：构造一次 base_messages，不在迭代中改动
     base_messages = chat_service.format_messages()
-    # 如启用MCP，仅注入一次工具使用说明
-    base_messages = _inject_mcp_prompt_to_messages(base_messages, mcp_mod if mcp_enabled else None)
+    # 注入MCP提示（无论启用还是禁用）
+    base_messages = _inject_mcp_prompt_to_messages(base_messages, mcp_mod, mcp_enabled)
     
     return {
         'max_ai_iterations': max_ai_iterations,
