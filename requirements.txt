@@ -1,18 +1,22 @@
-Flask
-openai
-python-dotenv
-numpy
-requests
-httpx
-pydub
-tenacity
-rtoml
-toml
-Pillow
-pretty-errors
-colorama
-waitress
-bs4
-# BERT情感分析相关依赖
-# transformers>=4.30.0
-# torch>=2.0.0
+flask==3.0.3
+waitress==3.0.1
+requests==2.32.3
+zhipuai==2.1.5.20230904
+dashscope==1.19.6
+openai==1.54.0
+qwen-turbo==0.3.2
+colorama==0.4.6
+pydub==0.25.1
+pillow==10.3.0
+mcp==1.1.1
+pyyaml==6.0.2
+annoy==1.17.3
+numpy==1.26.4
+transformers==4.43.3
+torch==2.4.0
+websocket-client==1.8.0
+pyaudio==0.2.14
+tiktoken==0.7.0
+pycryptodome==3.20.0
+pyside6==6.8.1
+pyqt6-webengine==6.8.0

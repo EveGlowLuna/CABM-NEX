@@ -108,6 +108,12 @@
                             <span>显示启动Logo</span>
                         </label>
                     </div>
+                    <div class="setting-item">
+                        <label for="acrylicEffectToggle">
+                            <input type="checkbox" id="acrylicEffectToggle">
+                            <span>使用亚克力效果</span>
+                        </label>
+                    </div>
                 </div>
 
                 <div class="settings-section">
@@ -133,6 +139,7 @@
         // 加载保存的设置
         document.addEventListener('DOMContentLoaded', function() {
             const showLogoToggle = document.getElementById('showLogoToggle');
+            const acrylicEffectToggle = document.getElementById('acrylicEffectToggle');
             const userMsgColor = document.getElementById('userMsgColor');
             const aiMsgColor = document.getElementById('aiMsgColor');
             
@@ -140,9 +147,20 @@
             const showLogo = localStorage.getItem('showLogoSplash') !== 'false';
             showLogoToggle.checked = showLogo;
             
+            // 从localStorage加载亚克力效果设置，默认开启
+            const useAcrylicEffect = localStorage.getItem('useAcrylicEffect') !== 'false';
+            acrylicEffectToggle.checked = useAcrylicEffect;
+            
             // 保存设置
             showLogoToggle.addEventListener('change', function() {
                 localStorage.setItem('showLogoSplash', this.checked);
+            });
+            
+            // 保存亚克力效果设置
+            acrylicEffectToggle.addEventListener('change', function() {
+                localStorage.setItem('useAcrylicEffect', this.checked);
+                // 触发自定义事件，通知其他组件更新
+                window.dispatchEvent(new CustomEvent('acrylicEffectChanged', { detail: this.checked }));
             });
 
             // 读取并应用消息颜色设置

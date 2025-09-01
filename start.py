@@ -212,6 +212,27 @@ def start_server(host, port, debug=False, open_browser_flag=True):
     except Exception as e:
         logger.error(f"服务器启动失败: {str(e)}")
         return False
+
+def start_gui_app(host, port, debug=False):
+    """启动PySide6 GUI应用"""
+    try:
+        logger.info("正在启动PySide6 GUI应用...")
+        
+        # 设置环境
+        env_ok = setup_environment()
+        if not env_ok:
+            logger.warning("环境设置失败")
+            return False
+            
+        # 启动PySide6应用
+        from cabm_gui import main as gui_main
+        gui_main()
+        
+        return True
+    except Exception as e:
+        logger.error(f"GUI应用启动失败: {str(e)}")
+        return False
+
 def main():
     """主函数"""
     # 解析命令行参数
@@ -220,9 +241,22 @@ def main():
     parser.add_argument('--port', type=int, help='端口号')
     parser.add_argument('--debug', action='store_true', help='启用调试模式')
     parser.add_argument('--no-browser', action='store_true', help='不自动打开浏览器')
+    parser.add_argument('--gui', action='store_true', help='使用PySide6 GUI启动')
     args = parser.parse_args()
     
     logger.info("正在启动CABM应用...")
+    
+    # 如果指定GUI模式，则启动GUI应用
+    if args.gui:
+        # GUI模式下使用默认参数
+        host = args.host or "127.0.0.1"
+        port = args.port or 5000
+        debug = args.debug or False
+        
+        if not start_gui_app(host, port, debug):
+            logger.error("GUI应用启动失败")
+            sys.exit(1)
+        return
     
     # 设置环境
     env_ok = setup_environment()

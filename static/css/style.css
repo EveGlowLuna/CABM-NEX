@@ -351,8 +351,7 @@ body {
 }
 
 .chat-header .back-btn:hover {
-    background-color: rgba(255, 255, 255, 0.3);
-    color: rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.1);
     transform: none;
     /* 移除变换效果 */
     box-shadow: none;
@@ -360,7 +359,7 @@ body {
 }
 
 #chatPage .chat-header .back-btn:hover {
-    color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.1);
     transform: none;
     /* 移除变换效果 */
     box-shadow: none;
